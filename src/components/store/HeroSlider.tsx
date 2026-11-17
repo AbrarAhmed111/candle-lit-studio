@@ -27,10 +27,7 @@ export default function HeroSlider() {
   const count = heroSlides.length
   const slide = heroSlides[index]
 
-  const go = useCallback(
-    (step: number) => setIndex(i => (i + step + count) % count),
-    [count],
-  )
+  const go = useCallback((step: number) => setIndex(i => (i + step + count) % count), [count])
 
   // Autoplay. Stops on hover, on focus inside, when paused, or with reduced motion.
   const running = playing && !hovered
@@ -80,10 +77,7 @@ export default function HeroSlider() {
             src={s.image}
             alt={i === index ? s.alt : ''}
             fetchPriority={i === 0 ? 'high' : 'low'}
-            className={clsx(
-              'absolute inset-0 h-full w-full object-cover lg:left-[16%]',
-              i === index && 'hero-photo',
-            )}
+            className={clsx('absolute inset-0 h-full w-full object-cover lg:left-[16%]', i === index && 'hero-photo')}
             style={{ objectPosition: s.position }}
           />
         </div>
@@ -143,9 +137,11 @@ export default function HeroSlider() {
             <Link href={slide.primary.href} className="btn-light">
               {slide.primary.label}
             </Link>
-            <Link href={slide.secondary.href} className="btn-ghost-light">
-              {slide.secondary.label}
-            </Link>
+            {slide.secondary?.label && slide.secondary.href && (
+              <Link href={slide.secondary.href} className="btn-ghost-light">
+                {slide.secondary.label}
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -173,10 +169,7 @@ export default function HeroSlider() {
                 {i === index && (
                   <span
                     key={`${index}-${running}`}
-                    className={clsx(
-                      'absolute inset-0 origin-left rounded-full bg-ember',
-                      running && 'slide-progress',
-                    )}
+                    className={clsx('absolute inset-0 origin-left rounded-full bg-ember', running && 'slide-progress')}
                     style={{ animationDuration: `${INTERVAL}ms` }}
                   />
                 )}
@@ -219,14 +212,6 @@ export default function HeroSlider() {
   )
 }
 
-function Heading({
-  as: Tag,
-  className,
-  children,
-}: {
-  as: 'h1' | 'h2'
-  className: string
-  children: React.ReactNode
-}) {
+function Heading({ as: Tag, className, children }: { as: 'h1' | 'h2'; className: string; children: React.ReactNode }) {
   return <Tag className={className}>{children}</Tag>
 }

@@ -11,13 +11,7 @@ import { setCoupon } from '@/store/cart/CartSlice'
 
 type Totals = ReturnType<typeof computeTotals>
 
-export default function OrderSummary({
-  totals,
-  children,
-}: {
-  totals: Totals
-  children?: React.ReactNode
-}) {
+export default function OrderSummary({ totals, children }: { totals: Totals; children?: React.ReactNode }) {
   const dispatch = useAppDispatch()
   const couponCode = useAppSelector(s => s.cart.couponCode)
   const [code, setCode] = useState('')
@@ -111,9 +105,7 @@ export default function OrderSummary({
 
       <dl className="mt-6 space-y-2.5 text-[0.95rem]">
         <Row label={`Subtotal (${totals.itemCount} ${totals.itemCount === 1 ? 'item' : 'items'})`}>
-          {totals.productSavings > 0 && (
-            <s className="mr-2 text-umber">{formatPKR(totals.originalSubtotal)}</s>
-          )}
+          {totals.productSavings > 0 && <s className="mr-2 text-umber">{formatPKR(totals.originalSubtotal)}</s>}
           {formatPKR(totals.subtotal)}
         </Row>
         {totals.couponDiscount > 0 && (
@@ -127,19 +119,15 @@ export default function OrderSummary({
       </dl>
 
       <div className="mt-5 flex items-baseline justify-between border-t border-espresso pt-5">
-        <span className="font-medium">Pay on delivery</span>
+        <span className="font-medium">Total</span>
         <span className="font-display text-3xl">{formatPKR(totals.total)}</span>
       </div>
       {totals.savings > 0 && (
-        <p className="mt-1 text-right text-sm text-sage">
-          You save {formatPKR(totals.savings)} on this order
-        </p>
+        <p className="mt-1 text-right text-sm text-sage">You save {formatPKR(totals.savings)} on this order</p>
       )}
 
       {totals.toFreeShipping > 0 && totals.shipping > 0 && (
-        <p className="mt-4 text-sm text-umber">
-          Add {formatPKR(totals.toFreeShipping)} more for free delivery.
-        </p>
+        <p className="mt-4 text-sm text-umber">Add {formatPKR(totals.toFreeShipping)} more for free delivery.</p>
       )}
 
       {children && <div className="mt-6">{children}</div>}

@@ -6,7 +6,7 @@ import { SlidersHorizontal, X } from 'lucide-react'
 import clsx from 'clsx'
 import ProductCard from './ProductCard'
 import Reveal from './Reveal'
-import { categories, products } from '@/data/products'
+import { categories, inCategory, products } from '@/data/products'
 import { fromPrice, totalStock } from '@/lib/pricing'
 import type { FragranceFamily } from '@/types'
 
@@ -28,14 +28,7 @@ const priceBands = [
   { value: 'o3000', label: 'Over Rs. 3,000', min: 3001, max: Infinity },
 ]
 
-const families: FragranceFamily[] = [
-  'Floral',
-  'Woody',
-  'Gourmand',
-  'Fresh',
-  'Earthy',
-  'Unscented',
-]
+const families: FragranceFamily[] = ['Floral', 'Woody', 'Gourmand', 'Fresh', 'Earthy', 'Unscented']
 
 type Props = {
   /** Locks the catalogue to one category on collection pages */
@@ -72,16 +65,14 @@ export default function Catalogue({ fixedCategory }: Props) {
     const needle = q.toLowerCase()
     const list = products.filter(p => {
       const cat = fixedCategory ?? category
-      if (cat !== 'all' && !p.categories.includes(cat)) return false
+      if (cat !== 'all' && !inCategory(p, cat)) return false
       if (family !== 'all' && p.fragranceFamily !== family) return false
       const price = fromPrice(p).sale
       if (price < range.min || price > range.max) return false
       if (inStock && totalStock(p) === 0) return false
       if (onSale && !p.discountPercent) return false
       if (needle) {
-        const haystack = [p.name, p.fragrance, p.fragranceFamily, p.tagline, ...p.tags]
-          .join(' ')
-          .toLowerCase()
+        const haystack = [p.name, p.fragrance, p.fragranceFamily, p.tagline, ...p.tags].join(' ').toLowerCase()
         if (!haystack.includes(needle)) return false
       }
       return true
@@ -102,10 +93,9 @@ export default function Catalogue({ fixedCategory }: Props) {
   useEffect(() => {
     const el = sentinel.current
     if (!el || !hasMore) return
-    const observer = new IntersectionObserver(
-      ([entry]) => entry.isIntersecting && setShown(n => n + PAGE_SIZE),
-      { rootMargin: '0px 0px 300px 0px' },
-    )
+    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && setShown(n => n + PAGE_SIZE), {
+      rootMargin: '0px 0px 300px 0px',
+    })
     observer.observe(el)
     return () => observer.disconnect()
   }, [hasMore, shown])
@@ -129,16 +119,23 @@ export default function Catalogue({ fixedCategory }: Props) {
     <div className="flex flex-col gap-8">
       {!fixedCategory && (
         <FilterGroup title="Collection">
-          <Choice label="All candles" checked={category === 'all'} onChange={() => setCategory('all')} name="category" />
-          {categories.map(c => (
-            <Choice
-              key={c.slug}
-              label={c.name}
-              checked={category === c.slug}
-              onChange={() => setCategory(c.slug)}
-              name="category"
-            />
-          ))}
+          <Choice
+            label="All candles"
+            checked={category === 'all'}
+            onChange={() => setCategory('all')}
+            name="category"
+          />
+          {categories
+            .filter(c => !c.archived)
+            .map(c => (
+              <Choice
+                key={c.slug}
+                label={c.name}
+                checked={category === c.slug}
+                onChange={() => setCategory(c.slug)}
+                name="category"
+              />
+            ))}
         </FilterGroup>
       )}
       <FilterGroup title="Fragrance">
@@ -149,7 +146,13 @@ export default function Catalogue({ fixedCategory }: Props) {
       </FilterGroup>
       <FilterGroup title="Price">
         {priceBands.map(b => (
-          <Choice key={b.value} label={b.label} checked={band === b.value} onChange={() => setBand(b.value)} name="price" />
+          <Choice
+            key={b.value}
+            label={b.label}
+            checked={band === b.value}
+            onChange={() => setBand(b.value)}
+            name="price"
+          />
         ))}
       </FilterGroup>
       <FilterGroup title="Show only">
@@ -239,9 +242,7 @@ export default function Catalogue({ fixedCategory }: Props) {
               </div>
             ) : (
               results.length > PAGE_SIZE && (
-                <p className="mt-14 text-center text-sm text-umber">
-                  That is all {results.length} candles.
-                </p>
+                <p className="mt-14 text-center text-sm text-umber">That is all {results.length} candles.</p>
               )
             )}
           </>
@@ -270,11 +271,7 @@ export default function Catalogue({ fixedCategory }: Props) {
             </div>
             <div className="overflow-y-auto px-5 py-6">{filters}</div>
             <div className="border-t border-hairline p-4">
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(false)}
-                className="btn-primary w-full"
-              >
+              <button type="button" onClick={() => setFiltersOpen(false)} className="btn-primary w-full">
                 Show {results.length} {results.length === 1 ? 'candle' : 'candles'}
               </button>
             </div>
@@ -314,13 +311,7 @@ function Choice({
         checked ? 'text-espresso' : 'text-umber hover:text-espresso',
       )}
     >
-      <input
-        type={type}
-        name={name}
-        checked={checked}
-        onChange={onChange}
-        className="h-4 w-4 accent-[#A9692F]"
-      />
+      <input type={type} name={name} checked={checked} onChange={onChange} className="h-4 w-4 accent-[#A9692F]" />
       {label}
     </label>
   )

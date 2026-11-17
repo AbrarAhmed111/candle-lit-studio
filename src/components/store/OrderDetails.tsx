@@ -2,26 +2,25 @@
 
 import { Copy, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
+import CancelRequest from './CancelRequest'
+import PaymentStatus from './PaymentStatus'
+import { paymentStatusText } from '@/lib/payments'
 import clsx from 'clsx'
 import { formatDate, formatPKR } from '@/lib/pricing'
 import type { Order, OrderStatus } from '@/types'
 
-const steps: OrderStatus[] = [
-  'Pending Confirmation',
-  'Confirmed',
-  'Processing',
-  'Packed',
-  'Dispatched',
-  'Delivered',
-]
+const steps: OrderStatus[] = ['Pending Confirmation', 'Confirmed', 'Processing', 'Packed', 'Dispatched', 'Delivered']
 
 const statusNote: Record<OrderStatus, string> = {
-  'Pending Confirmation': 'We will call or WhatsApp you shortly to confirm this order.',
+  'Pending Confirmation': 'We confirm your order once your payment is checked.',
   Confirmed: 'Your order is confirmed and waiting to be prepared.',
   Processing: 'We are preparing your candles.',
   Packed: 'Your order is packed and waiting for the courier.',
   Dispatched: 'Your parcel is with the courier. Check your email for the tracking ID.',
   Delivered: 'Your order has been delivered. Enjoy your candles.',
+  'Cancellation Requested': 'You asked to cancel this order. We will confirm by phone or WhatsApp.',
+  'Failed Delivery': 'The courier could not deliver this order. We will contact you to arrange it again.',
+  Returned: 'This order came back to us. Contact us if you would still like it.',
   Cancelled: 'This order was cancelled.',
 }
 
@@ -49,18 +48,13 @@ export default function OrderDetails({ order }: { order: Order }) {
         <div className="mt-6">
           <p className="text-lg font-medium">{order.status}</p>
           <p className="mt-1 text-umber">{statusNote[order.status]}</p>
-          {order.status !== 'Cancelled' && (
+          {!['Cancelled', 'Returned', 'Cancellation Requested'].includes(order.status) && (
             <ol className="mt-5 grid grid-cols-6 gap-1.5" aria-label="Order progress">
               {steps.map((s, i) => (
                 <li key={s}>
-                  <div
-                    className={clsx('h-1.5 rounded-full', i <= current ? 'bg-caramel' : 'bg-wax')}
-                  />
+                  <div className={clsx('h-1.5 rounded-full', i <= current ? 'bg-caramel' : 'bg-wax')} />
                   <span
-                    className={clsx(
-                      'mt-2 hidden text-xs sm:block',
-                      i <= current ? 'text-espresso' : 'text-umber/70',
-                    )}
+                    className={clsx('mt-2 hidden text-xs sm:block', i <= current ? 'text-espresso' : 'text-umber/70')}
                     aria-current={i === current ? 'step' : undefined}
                   >
                     {s === 'Pending Confirmation' ? 'Received' : s}
@@ -70,6 +64,9 @@ export default function OrderDetails({ order }: { order: Order }) {
             </ol>
           )}
         </div>
+
+        <PaymentStatus order={order} />
+        <CancelRequest order={order} />
 
         {order.shipment && (
           <section className="mt-8 bg-wax/60 p-6" aria-labelledby="shipment-h">
@@ -104,19 +101,20 @@ export default function OrderDetails({ order }: { order: Order }) {
               </a>
             </div>
             <p className="mt-4 text-sm text-umber">
-              We also emailed you this tracking ID. Paste it on the{' '}
-              {order.shipment.courier} website to see where your parcel is.
+              We also emailed you this tracking ID. Paste it on the {order.shipment.courier} website to see where your
+              parcel is.
             </p>
           </section>
         )}
 
         <ul className="mt-8 divide-y divide-hairline border-y border-hairline">
           {order.lines.map(l => (
-            <li key={l.name + l.variant} className="flex items-baseline justify-between gap-4 py-4">
+            <li key={l.name + l.variant + (l.colour ?? '')} className="flex items-baseline justify-between gap-4 py-4">
               <div>
                 <p className="font-medium">{l.name}</p>
                 <p className="text-sm text-umber">
-                  {l.variant}, qty {l.qty}
+                  {l.variant}
+                  {l.colour && `, ${l.colour}`}, qty {l.qty}
                 </p>
               </div>
               <p>
@@ -147,10 +145,13 @@ export default function OrderDetails({ order }: { order: Order }) {
           <h3 className="font-sans text-sm font-semibold tracking-normal">Payment</h3>
           <p className="mt-2">{order.paymentMethod}</p>
           <p className="text-umber">
-            {order.paymentStatus === 'Pending Collection'
-              ? `${formatPKR(order.total)} to pay in cash on delivery`
-              : `${formatPKR(order.total)} paid to the courier`}
+            {order.paymentMethod === 'Easypaisa'
+              ? `${formatPKR(order.total)}. ${paymentStatusText[order.paymentStatus] ?? order.paymentStatus}.`
+              : order.paymentStatus === 'Pending Collection'
+                ? `${formatPKR(order.total)} to pay in cash on delivery`
+                : `${formatPKR(order.total)} paid to the courier`}
           </p>
+          {order.payment?.reference && <p className="text-sm text-umber">Transaction ID {order.payment.reference}</p>}
         </div>
         <div>
           <h3 className="font-sans text-sm font-semibold tracking-normal">Delivering to</h3>

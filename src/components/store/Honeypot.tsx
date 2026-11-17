@@ -7,7 +7,13 @@ export default function Honeypot({ value, onChange }: { value: string; onChange:
     <div aria-hidden className="absolute -left-[9999px] h-px w-px overflow-hidden">
       <label>
         Leave this empty
-        <input tabIndex={-1} autoComplete="off" name="company_website" value={value} onChange={e => onChange(e.target.value)} />
+        <input
+          tabIndex={-1}
+          autoComplete="off"
+          name="company_website"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+        />
       </label>
     </div>
   )

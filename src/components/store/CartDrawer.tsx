@@ -31,10 +31,7 @@ export default function CartDrawer() {
 
   if (!drawerOpen) return null
 
-  const progress = Math.min(
-    100,
-    ((store.freeShippingOver - totals.toFreeShipping) / store.freeShippingOver) * 100,
-  )
+  const progress = Math.min(100, ((store.freeShippingOver - totals.toFreeShipping) / store.freeShippingOver) * 100)
 
   return (
     <div className="fixed inset-0 z-[60] text-espresso" role="dialog" aria-modal="true" aria-label="Cart">
@@ -47,8 +44,7 @@ export default function CartDrawer() {
       <div className="drawer-right absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-ivory shadow-[-30px_0_60px_-30px_rgba(30,20,16,0.5)]">
         <div className="flex items-center justify-between px-6 pb-4 pt-5">
           <h2 className="text-3xl italic">
-            Your cart{' '}
-            <span className="font-sans text-base not-italic text-umber">({totals.itemCount})</span>
+            Your cart <span className="font-sans text-base not-italic text-umber">({totals.itemCount})</span>
           </h2>
           <button
             type="button"
@@ -90,7 +86,7 @@ export default function CartDrawer() {
             <ul className="flex-1 divide-y divide-hairline overflow-y-auto border-y border-hairline px-6">
               {totals.lines.map((l, i) => (
                 <li
-                  key={l.variant.id}
+                  key={`${l.variant.id}:${l.colour ?? ''}`}
                   className="fade-up flex gap-4 py-4"
                   style={{ '--d': `${120 + i * 60}ms` } as React.CSSProperties}
                 >
@@ -107,7 +103,10 @@ export default function CartDrawer() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-display text-xl leading-tight">{l.product.name}</p>
-                        <p className="text-sm text-umber">{l.variant.label}</p>
+                        <p className="text-sm text-umber">
+                          {l.variant.label}
+                          {l.colour && `, ${l.colour}`}
+                        </p>
                       </div>
                       <p className="shrink-0 text-[0.95rem] font-medium">{formatPKR(l.lineTotal)}</p>
                     </div>
@@ -116,7 +115,14 @@ export default function CartDrawer() {
                         <button
                           type="button"
                           onClick={() =>
-                            dispatch(setQty({ productId: l.product.id, variantId: l.variant.id, qty: l.qty - 1 }))
+                            dispatch(
+                              setQty({
+                                productId: l.product.id,
+                                variantId: l.variant.id,
+                                colour: l.colour,
+                                qty: l.qty - 1,
+                              }),
+                            )
                           }
                           disabled={l.qty <= 1}
                           aria-label={`Decrease quantity of ${l.product.name}`}
@@ -128,7 +134,14 @@ export default function CartDrawer() {
                         <button
                           type="button"
                           onClick={() =>
-                            dispatch(setQty({ productId: l.product.id, variantId: l.variant.id, qty: l.qty + 1 }))
+                            dispatch(
+                              setQty({
+                                productId: l.product.id,
+                                variantId: l.variant.id,
+                                colour: l.colour,
+                                qty: l.qty + 1,
+                              }),
+                            )
                           }
                           disabled={l.qty >= l.variant.stock}
                           aria-label={`Increase quantity of ${l.product.name}`}
@@ -140,7 +153,13 @@ export default function CartDrawer() {
                       <button
                         type="button"
                         onClick={() =>
-                          remove({ productId: l.product.id, variantId: l.variant.id, qty: l.qty, name: l.product.name })
+                          remove({
+                            productId: l.product.id,
+                            variantId: l.variant.id,
+                            colour: l.colour,
+                            qty: l.qty,
+                            name: l.product.name,
+                          })
                         }
                         className="min-h-9 text-sm text-umber underline-offset-4 hover:text-wine hover:underline"
                       >
@@ -158,7 +177,7 @@ export default function CartDrawer() {
                 <span className="font-display text-3xl">{formatPKR(totals.subtotal)}</span>
               </div>
               <p className="mt-1 text-sm text-umber">
-                Delivery and coupons are worked out at checkout. Pay in cash on delivery.
+                Delivery and coupons are worked out at checkout. Pay by Easypaisa.
               </p>
               <Link href="/checkout" onClick={close} className="btn-primary mt-5 w-full">
                 Go to checkout

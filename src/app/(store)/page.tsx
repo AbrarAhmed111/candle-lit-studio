@@ -8,7 +8,8 @@ import ProductCard from '@/components/store/ProductCard'
 import RecentlyViewed from '@/components/store/RecentlyViewed'
 import Reveal from '@/components/store/Reveal'
 import Stars from '@/components/store/Stars'
-import { categories, getProduct, products, testimonials } from '@/data/products'
+import { getProduct, products, testimonials, topCategories } from '@/data/products'
+import CategoryPicture, { categoryTint } from '@/components/store/CategoryPicture'
 import { campaign, store } from '@/data/store'
 import { formatDate, formatPKR, salePrice } from '@/lib/pricing'
 import { loadCatalog } from '@/lib/catalog/server'
@@ -29,9 +30,7 @@ const fragrances = [
 export default async function Home() {
   await loadCatalog()
   const bestSellers = [...products].sort((a, b) => b.sold - a.sold).slice(0, 4)
-  const newArrivals = [...products]
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 4)
+  const newArrivals = [...products].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 4)
   const trio = getProduct('the-evening-trio')!
   const rose = getProduct('desi-gulab')!
 
@@ -44,10 +43,7 @@ export default async function Home() {
       <div className="overflow-hidden border-y border-espresso/15 bg-wax py-5" aria-hidden>
         <div className="marquee">
           {[...fragrances, ...fragrances].map((f, i) => (
-            <span
-              key={i}
-              className="flex items-center whitespace-nowrap font-display text-3xl italic lg:text-4xl"
-            >
+            <span key={i} className="flex items-center whitespace-nowrap font-display text-3xl italic lg:text-4xl">
               <span className="px-7">{f}</span>
               <Flame size={18} className="text-caramel" />
             </span>
@@ -64,19 +60,17 @@ export default async function Home() {
           </Link>
         </Reveal>
         <ul className="no-scroll -mx-5 mt-10 flex snap-x gap-4 overflow-x-auto px-5 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-6 sm:overflow-visible sm:px-0 lg:grid-cols-6">
-          {categories.map((c, i) => {
-            const cover = getProduct(c.cover)!
+          {topCategories().map((c, i) => {
             return (
               <Reveal as="li" key={c.slug} delay={i * 80} className="w-36 shrink-0 snap-start sm:w-auto">
                 <Link href={`/collections/${c.slug}`} className="group block">
                   <div
                     className="alcove card-media aspect-[3/4] overflow-hidden"
-                    style={{ backgroundColor: cover.art.bg }}
+                    style={{ backgroundColor: categoryTint(c) }}
                   >
-                    <ProductPhoto
-                      product={cover}
+                    <CategoryPicture
+                      category={c}
                       sizes="(min-width: 640px) 16vw, 144px"
-                      decorative
                       className="transition-transform duration-700 ease-out group-hover:scale-110"
                     />
                   </div>
@@ -95,9 +89,7 @@ export default async function Home() {
         <Reveal className="flex items-end justify-between gap-6">
           <div>
             <h2 className="text-4xl lg:text-6xl">Lit on repeat</h2>
-            <p className="mt-3 max-w-md text-umber">
-              Four candles our customers cannot stop reordering.
-            </p>
+            <p className="mt-3 max-w-md text-umber">Four candles our customers cannot stop reordering.</p>
           </div>
           <Link href="/shop?sort=best-selling" className="link hidden shrink-0 sm:inline">
             All best sellers
@@ -120,8 +112,7 @@ export default async function Home() {
               aria-hidden
               className="glow-breathe pointer-events-none absolute -right-24 -top-24 h-[34rem] w-[34rem] rounded-full"
               style={{
-                background:
-                  'radial-gradient(closest-side, rgba(255,217,138,0.55), rgba(255,217,138,0) 70%)',
+                background: 'radial-gradient(closest-side, rgba(255,217,138,0.55), rgba(255,217,138,0) 70%)',
               }}
             />
             <div className="relative p-8 sm:p-12 lg:p-16">
@@ -180,31 +171,23 @@ export default async function Home() {
               aria-hidden
               className="glow-breathe pointer-events-none absolute -bottom-40 -right-32 h-[36rem] w-[36rem]"
               style={{
-                background:
-                  'radial-gradient(closest-side, rgba(232,169,60,0.3), rgba(30,20,16,0) 70%)',
+                background: 'radial-gradient(closest-side, rgba(232,169,60,0.3), rgba(30,20,16,0) 70%)',
               }}
             />
             <h2 className="relative max-w-xl text-4xl italic leading-[1.1] lg:text-[3.6rem] lg:leading-[1.08]">
               One stove. One pot of wax. One stubborn idea.
             </h2>
             <p className="relative mt-6 max-w-lg text-lg text-wax/80">
-              No candle on the shelf smelled like home, so we made our own. Every
-              one is still poured, wicked and labelled by hand in our Quetta
-              studio.
+              No candle on the shelf smelled like home, so we made our own. Every one is still poured, wicked and
+              labelled by hand in our Quetta studio.
             </p>
             <Link href="/about" className="btn-light relative mt-8">
               Read our story <ArrowUpRight size={17} />
             </Link>
           </Reveal>
 
-          <Reveal
-            delay={120}
-            className="group flex flex-col justify-between overflow-hidden rounded-[2rem] p-8"
-          >
-            <div
-              className="-m-8 mb-0 h-60 overflow-hidden"
-              style={{ backgroundColor: rose.art.bg }}
-            >
+          <Reveal delay={120} className="group flex flex-col justify-between overflow-hidden rounded-[2rem] p-8">
+            <div className="-m-8 mb-0 h-60 overflow-hidden" style={{ backgroundColor: rose.art.bg }}>
               <ProductPhoto
                 product={rose}
                 sizes="(min-width: 1024px) 33vw, 100vw"
@@ -214,17 +197,24 @@ export default async function Home() {
             <div className="-mx-8 -mb-8 bg-wax p-8">
               <h3 className="text-2xl">Scents with a memory</h3>
               <p className="mt-2 text-umber">
-                Every fragrance starts as a memory, then earns its place through
-                weeks of test burns.
+                Every fragrance starts as a memory, then earns its place through weeks of test burns.
               </p>
             </div>
           </Reveal>
 
           {(
             [
-              [Leaf, 'Clean wax, clean air', 'Soy and coconut wax with cotton and wooden wicks. No paraffin in our jar candles.'],
+              [
+                Leaf,
+                'Clean wax, clean air',
+                'Soy and coconut wax with cotton and wooden wicks. No paraffin in our jar candles.',
+              ],
               [Flame, 'Forty at a time', 'Small batches only. Every candle is checked before it is boxed.'],
-              [Banknote, 'Pay at your door', `Cash on delivery across Pakistan. Delivery is free over ${formatPKR(store.freeShippingOver)}.`],
+              [
+                Banknote,
+                'Pay at your door',
+                `Pay easily with Easypaisa. Delivery across Pakistan, free over ${formatPKR(store.freeShippingOver)}.`,
+              ],
             ] as const
           ).map(([Icon, title, text], i) => (
             <Reveal
@@ -245,10 +235,7 @@ export default async function Home() {
       {/* Gift feature */}
       <section className="page grid grid-cols-1 items-center gap-10 pt-20 md:grid-cols-2 lg:gap-20 lg:pt-28">
         <Reveal>
-          <div
-            className="alcove aspect-square overflow-hidden"
-            style={{ backgroundColor: trio.art.bg }}
-          >
+          <div className="alcove aspect-square overflow-hidden" style={{ backgroundColor: trio.art.bg }}>
             <ProductPhoto product={trio} sizes="(min-width: 768px) 50vw, 100vw" />
           </div>
         </Reveal>
@@ -311,9 +298,7 @@ export default async function Home() {
         <Reveal>
           <div className="relative grid grid-cols-1 gap-8 overflow-hidden rounded-[2rem] bg-wax p-8 sm:p-12 md:grid-cols-2 md:items-center lg:p-16">
             <div>
-              <h2 className="text-3xl lg:text-5xl">
-                Be first to the next pour
-              </h2>
+              <h2 className="text-3xl lg:text-5xl">Be first to the next pour</h2>
               <p className="mt-3 text-umber">
                 New scents and private offers, about twice a month. Unsubscribe whenever you like.
               </p>

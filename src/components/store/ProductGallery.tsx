@@ -133,10 +133,20 @@ function FullView({
         />
         {many && (
           <>
-            <button type="button" onClick={() => step(-1)} aria-label="Previous photo" className={clsx(arrow, 'left-0 sm:left-2')}>
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              aria-label="Previous photo"
+              className={clsx(arrow, 'left-0 sm:left-2')}
+            >
               <ChevronLeft size={22} />
             </button>
-            <button type="button" onClick={() => step(1)} aria-label="Next photo" className={clsx(arrow, 'right-0 sm:right-2')}>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              aria-label="Next photo"
+              className={clsx(arrow, 'right-0 sm:right-2')}
+            >
               <ChevronRight size={22} />
             </button>
           </>

@@ -17,8 +17,18 @@ export default function AccountOverview() {
   const delivered = orders?.filter(o => o.status === 'Delivered') ?? []
 
   const tiles = [
-    { href: '/account/orders', label: 'Orders', value: orders ? String(orders.length) : '…', hint: `${active.length} on the way` },
-    { href: '/wishlist', label: 'Wishlist', value: String(saved), hint: saved === 1 ? 'saved candle' : 'saved candles' },
+    {
+      href: '/account/orders',
+      label: 'Orders',
+      value: orders ? String(orders.length) : '…',
+      hint: `${active.length} on the way`,
+    },
+    {
+      href: '/wishlist',
+      label: 'Wishlist',
+      value: String(saved),
+      hint: saved === 1 ? 'saved candle' : 'saved candles',
+    },
     {
       href: '/account/orders',
       label: 'Delivered so far',
@@ -41,7 +51,10 @@ export default function AccountOverview() {
           >
             <p className="flex items-center justify-between text-sm text-umber">
               {t.label}
-              <ArrowUpRight size={16} className="text-caramel transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+              <ArrowUpRight
+                size={16}
+                className="text-caramel transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+              />
             </p>
             <p className="mt-2 font-display text-4xl leading-none">{t.value}</p>
             <p className="mt-2 text-sm text-umber">{t.hint}</p>

@@ -3,9 +3,7 @@ import type { Product } from '@/types'
 
 /** Unsplash CDN URL for a photo id, resized on their side. Full links pass through. */
 export const photoUrl = (id: string, width = 800) =>
-  /^https?:\/\//.test(id)
-    ? id
-    : `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${width}&q=75`
+  /^https?:\/\//.test(id) ? id : `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${width}&q=75`
 
 const widths = [240, 480, 800, 1200, 1600]
 

@@ -7,8 +7,7 @@ import { loadCatalog } from '@/lib/catalog/server'
 
 export const metadata: Metadata = {
   title: 'All candles',
-  description:
-    'Browse every Candle Lit Studio candle. Filter by fragrance, price and collection.',
+  description: 'Browse every Candle Lit Studio candle. Filter by fragrance, price and collection.',
   alternates: { canonical: '/shop' },
 }
 

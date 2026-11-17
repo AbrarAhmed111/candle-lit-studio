@@ -14,6 +14,7 @@ import { photoUrl } from '@/components/store/ProductPhoto'
 import { formatDate, fromPrice, totalStock } from '@/lib/pricing'
 import { loadCatalog } from '@/lib/catalog/server'
 import ReviewForm from '@/components/store/ReviewForm'
+import ReviewReport from '@/components/store/ReviewReport'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -57,8 +58,7 @@ export default async function ProductPage({ params }: Props) {
     .filter(p => p.id !== product.id && p.categories.some(c => product.categories.includes(c)))
     .sort(
       (a, b) =>
-        Number(b.fragranceFamily === product.fragranceFamily) -
-        Number(a.fragranceFamily === product.fragranceFamily),
+        Number(b.fragranceFamily === product.fragranceFamily) - Number(a.fragranceFamily === product.fragranceFamily),
     )
     .slice(0, 4)
 
@@ -66,10 +66,23 @@ export default async function ProductPage({ params }: Props) {
   const specs = [
     ['Fragrance family', product.fragranceFamily],
     ['Wax', product.waxType],
-    ['Colour', product.colour],
+    // Products with a colour choice list every colour
+    ['Colour', product.colours?.length ? product.colours.map(c => c.name).join(', ') : product.colour],
     ['Size', product.dimensions],
-    ['Weight', product.variants.map(v => v.weight).filter(Boolean).join(' or ')],
-    ['Burn time', product.variants.map(v => v.burnTime).filter(Boolean).join(' or ')],
+    [
+      'Weight',
+      product.variants
+        .map(v => v.weight)
+        .filter(Boolean)
+        .join(' or '),
+    ],
+    [
+      'Burn time',
+      product.variants
+        .map(v => v.burnTime)
+        .filter(Boolean)
+        .join(' or '),
+    ],
     ['Made with', product.ingredients],
     ['SKU', product.variants.map(v => v.sku).join(', ')],
   ].filter(([, value]) => value) as [string, string][]
@@ -91,25 +104,17 @@ export default async function ProductPage({ params }: Props) {
       '@type': 'Offer',
       priceCurrency: 'PKR',
       price: fromPrice(product).sale,
-      availability:
-        totalStock(product) > 0
-          ? 'https://schema.org/InStock'
-          : 'https://schema.org/OutOfStock',
+      availability: totalStock(product) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
     },
   }
 
   return (
     <div className="page pt-8 lg:pt-12">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Breadcrumbs
         items={[
           { label: 'All candles', href: '/shop' },
-          ...(category
-            ? [{ label: category.name, href: `/collections/${category.slug}` }]
-            : []),
+          ...(category ? [{ label: category.name, href: `/collections/${category.slug}` }] : []),
           { label: product.name },
         ]}
       />
@@ -191,16 +196,13 @@ export default async function ProductPage({ params }: Props) {
               <Stars rating={product.rating} size={18} />
             </div>
             <p className="mt-2 text-sm text-umber">Based on {product.reviewCount} reviews</p>
-            <p className="mt-6 text-sm text-umber">
-              Bought it? Tell other customers what you think.
-            </p>
+            <p className="mt-6 text-sm text-umber">Bought it? Tell other customers what you think.</p>
             <ReviewForm productId={product.id} productName={product.name} />
           </div>
           <div>
             {reviews.length === 0 ? (
               <p className="border-t border-hairline pt-6 text-umber">
-                Written reviews for {product.name} will appear here once they are
-                approved.
+                Written reviews for {product.name} will appear here once they are approved.
               </p>
             ) : (
               <ul className="divide-y divide-hairline border-t border-hairline">
@@ -208,11 +210,24 @@ export default async function ProductPage({ params }: Props) {
                   <li key={r.id} className="py-6">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <Stars rating={r.rating} />
-                      <h3 className="font-sans text-base font-semibold tracking-normal">
-                        {r.title}
-                      </h3>
+                      <h3 className="font-sans text-base font-semibold tracking-normal">{r.title}</h3>
                     </div>
                     <p className="mt-2 max-w-prose text-umber">{r.body}</p>
+                    {r.images && r.images.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {r.images.map(url => (
+                          <a key={url} href={url} target="_blank" rel="noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt={`Photo from ${r.author}`}
+                              loading="lazy"
+                              className="h-24 w-24 rounded-xl object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                     <p className="mt-3 flex flex-wrap items-center gap-x-3 text-sm text-umber">
                       <span className="text-espresso">
                         {r.author}, {r.city}
@@ -223,6 +238,7 @@ export default async function ProductPage({ params }: Props) {
                           <BadgeCheck size={15} /> Verified purchase
                         </span>
                       )}
+                      <ReviewReport id={r.id} />
                     </p>
                   </li>
                 ))}
@@ -251,15 +267,7 @@ export default async function ProductPage({ params }: Props) {
   )
 }
 
-function Disclosure({
-  title,
-  open,
-  children,
-}: {
-  title: string
-  open?: boolean
-  children: React.ReactNode
-}) {
+function Disclosure({ title, open, children }: { title: string; open?: boolean; children: React.ReactNode }) {
   return (
     <details open={open} className="group/d py-1">
       <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between font-medium [&::-webkit-details-marker]:hidden">

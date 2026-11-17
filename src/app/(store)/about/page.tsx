@@ -3,19 +3,12 @@ import Link from 'next/link'
 import ProductPhoto from '@/components/store/ProductPhoto'
 import { getProduct } from '@/data/products'
 import { loadCatalog } from '@/lib/catalog/server'
+import { about } from '@/data/content'
 
 export const metadata: Metadata = {
   title: 'Our story',
-  description:
-    'How Candle Lit Studio began on a kitchen stove in Quetta, and why every candle is still made by hand.',
+  description: 'How Candle Lit Studio began on a kitchen stove in Quetta, and why every candle is still made by hand.',
 }
-
-const process = [
-  ['Melt', 'Soy wax is melted slowly to 80°C in batches of forty candles.'],
-  ['Blend', 'Fragrance oil is stirred in by hand for two full minutes so it binds with the wax.'],
-  ['Pour', 'Each jar is wicked, centred and poured, then left untouched overnight.'],
-  ['Cure', 'Candles rest for two weeks before they are sold. That is what makes the scent carry.'],
-]
 
 export default async function AboutPage() {
   await loadCatalog()
@@ -29,16 +22,13 @@ export default async function AboutPage() {
           <div className="pb-14 lg:pb-24">
             <h1 className="text-5xl italic lg:text-7xl">
               <span className="line-mask">
-                <span style={{ animationDelay: '200ms' }}>Made slowly, in a small</span>
+                <span style={{ animationDelay: '200ms' }}>{about.title[0]}</span>
               </span>
               <span className="line-mask">
-                <span style={{ animationDelay: '350ms' }}>room in Quetta.</span>
+                <span style={{ animationDelay: '350ms' }}>{about.title[1]}</span>
               </span>
             </h1>
-            <p className="mt-6 max-w-lg text-lg text-wax/85">
-              One maker, a few helping hands and a shelf of fragrance oils. We
-              pour candles that smell like the places we come from.
-            </p>
+            <p className="mt-6 max-w-lg text-lg text-wax/85">{about.intro}</p>
           </div>
           <div className="flex items-end justify-center gap-4">
             <div className="alcove h-60 w-44 overflow-hidden lg:h-80 lg:w-60">
@@ -52,31 +42,19 @@ export default async function AboutPage() {
       </section>
 
       <section className="page grid grid-cols-1 gap-10 pt-20 lg:grid-cols-[1fr_1.4fr] lg:gap-20 lg:pt-28">
-        <h2 className="text-4xl lg:text-5xl">How it began</h2>
+        <h2 className="text-4xl lg:text-5xl">{about.storyHeading}</h2>
         <div className="max-w-prose space-y-5 text-lg text-umber">
-          <p>
-            It started with a gift. A friend was moving abroad and wanted
-            something that smelled like home. Nothing in the shops came close, so
-            the first Desi Gulab candle was poured in a steel pot on a kitchen stove.
-          </p>
-          <p>
-            She asked for six more. Then her cousins did. The stove became a
-            workbench, the workbench became a studio, and the list of fragrances
-            grew: chai on a cold morning, motia after dark, the first rain on dry
-            earth.
-          </p>
-          <p>
-            We are still small on purpose. Small batches mean we can test every
-            pour, trim every wick and write your gift note by hand.
-          </p>
+          {about.story.map((paragraph, i) => (
+            <p key={i}>{paragraph}</p>
+          ))}
         </div>
       </section>
 
       <section className="mt-20 bg-wax lg:mt-28">
         <div className="page py-20 lg:py-28">
-          <h2 className="text-4xl lg:text-5xl">How a candle is made</h2>
+          <h2 className="text-4xl lg:text-5xl">{about.processHeading}</h2>
           <ol className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
-            {process.map(([title, text], i) => (
+            {about.process.map(({ title, text }, i) => (
               <li key={title} className="border-t border-espresso pt-5">
                 <span className="font-display text-xl italic text-caramel">Step {i + 1}</span>
                 <h3 className="mt-1 text-3xl">{title}</h3>
@@ -88,9 +66,7 @@ export default async function AboutPage() {
       </section>
 
       <section className="page pt-20 text-center lg:pt-28">
-        <h2 className="mx-auto max-w-2xl text-4xl italic lg:text-5xl">
-          Somewhere on the shelf is the one that smells like home.
-        </h2>
+        <h2 className="mx-auto max-w-2xl text-4xl italic lg:text-5xl">{about.closing}</h2>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link href="/shop" className="btn-primary">
             Shop all candles

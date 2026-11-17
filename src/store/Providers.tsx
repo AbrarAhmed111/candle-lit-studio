@@ -74,10 +74,7 @@ const Providers = ({ children }: ProvidersProps) => {
     const unsubscribe = store.subscribe(() => {
       const { cart, wishlist } = store.getState()
       try {
-        window.localStorage.setItem(
-          CART_KEY,
-          JSON.stringify({ items: cart.items, couponCode: cart.couponCode }),
-        )
+        window.localStorage.setItem(CART_KEY, JSON.stringify({ items: cart.items, couponCode: cart.couponCode }))
         window.localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist.ids))
       } catch {
         // storage unavailable: the cart still works for this visit

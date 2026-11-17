@@ -11,8 +11,18 @@ type CartState = {
 
 const initialState: CartState = { items: [], couponCode: null, hydrated: false, drawerOpen: false }
 
-const stockOf = (item: { productId: string; variantId: string }) =>
-  getProductById(item.productId)?.variants.find(v => v.id === item.variantId)?.stock ?? 0
+type LineKey = { productId: string; variantId: string; colour?: string }
+
+/** One cart line per size and colour */
+export const sameLine = (a: LineKey, b: LineKey) =>
+  a.productId === b.productId && a.variantId === b.variantId && (a.colour ?? '') === (b.colour ?? '')
+
+/** Stock left for this line: every colour of a size shares the same stock */
+const roomFor = (items: CartItem[], line: LineKey) => {
+  const stock = getProductById(line.productId)?.variants.find(v => v.id === line.variantId)?.stock ?? 0
+  const others = items.filter(i => i.variantId === line.variantId && !sameLine(i, line)).reduce((n, i) => n + i.qty, 0)
+  return Math.max(0, stock - others)
+}
 
 const cartSlice = createSlice({
   name: 'cart',
@@ -24,31 +34,20 @@ const cartSlice = createSlice({
       state.hydrated = true
     },
     addItem(state, action: PayloadAction<CartItem>) {
-      const { productId, variantId, qty } = action.payload
-      const max = stockOf(action.payload)
-      const existing = state.items.find(
-        i => i.productId === productId && i.variantId === variantId,
-      )
+      const { productId, variantId, qty, colour } = action.payload
+      const max = roomFor(state.items, action.payload)
+      const existing = state.items.find(i => sameLine(i, action.payload))
       if (existing) existing.qty = Math.min(existing.qty + qty, max)
-      else if (max > 0) state.items.push({ productId, variantId, qty: Math.min(qty, max) })
+      else if (max > 0)
+        state.items.push({ productId, variantId, qty: Math.min(qty, max), ...(colour ? { colour } : {}) })
     },
     setQty(state, action: PayloadAction<CartItem>) {
-      const item = state.items.find(
-        i =>
-          i.productId === action.payload.productId &&
-          i.variantId === action.payload.variantId,
-      )
+      const item = state.items.find(i => sameLine(i, action.payload))
       if (!item) return
-      item.qty = Math.max(1, Math.min(action.payload.qty, stockOf(item)))
+      item.qty = Math.max(1, Math.min(action.payload.qty, roomFor(state.items, item)))
     },
-    removeItem(state, action: PayloadAction<{ productId: string; variantId: string }>) {
-      state.items = state.items.filter(
-        i =>
-          !(
-            i.productId === action.payload.productId &&
-            i.variantId === action.payload.variantId
-          ),
-      )
+    removeItem(state, action: PayloadAction<LineKey>) {
+      state.items = state.items.filter(i => !sameLine(i, action.payload))
     },
     setCoupon(state, action: PayloadAction<string | null>) {
       state.couponCode = action.payload
@@ -63,6 +62,5 @@ const cartSlice = createSlice({
   },
 })
 
-export const { hydrateCart, addItem, setQty, removeItem, setCoupon, clearCart, setDrawer } =
-  cartSlice.actions
+export const { hydrateCart, addItem, setQty, removeItem, setCoupon, clearCart, setDrawer } = cartSlice.actions
 export default cartSlice.reducer

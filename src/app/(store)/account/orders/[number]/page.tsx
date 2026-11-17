@@ -17,7 +17,10 @@ export default function AccountOrderPage() {
 
   return (
     <>
-      <Link href="/account/orders" className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel">
+      <Link
+        href="/account/orders"
+        className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel"
+      >
         <ArrowLeft size={16} /> Your orders
       </Link>
       {!orders ? (

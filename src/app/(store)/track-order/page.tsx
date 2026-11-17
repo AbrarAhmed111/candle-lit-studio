@@ -37,18 +37,11 @@ export default async function TrackOrderPage() {
     <div className="page pt-8 lg:pt-12">
       <Breadcrumbs items={[{ label: 'Track order' }]} />
       <h1 className="mt-6 text-5xl lg:text-6xl">Track your order</h1>
-      <p className="mt-4 max-w-xl text-lg text-umber">
-        Three steps and you will know where your candles are.
-      </p>
+      <p className="mt-4 max-w-xl text-lg text-umber">Three steps and you will know where your candles are.</p>
 
       <ol className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
         {steps.map((s, i) => (
-          <Reveal
-            as="li"
-            key={s.title}
-            delay={i * 110}
-            className="rounded-[2rem] border border-hairline bg-linen p-8"
-          >
+          <Reveal as="li" key={s.title} delay={i * 110} className="rounded-[2rem] border border-hairline bg-linen p-8">
             <div className="flex items-center justify-between">
               <span className="grid h-12 w-12 place-items-center rounded-full bg-wax text-caramel">
                 <s.icon size={22} />
@@ -66,8 +59,8 @@ export default async function TrackOrderPage() {
           Courier tracking websites
         </h2>
         <p className="mt-3 max-w-xl text-umber">
-          Choose the courier named in your dispatch email. Each link opens the
-          courier’s official tracking page in a new tab.
+          Choose the courier named in your dispatch email. Each link opens the courier’s official tracking page in a new
+          tab.
         </p>
         <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {couriers.map(c => (
@@ -88,14 +81,8 @@ export default async function TrackOrderPage() {
           ))}
         </ul>
         <p className="mt-5 text-sm text-umber">
-          No email yet? Orders are dispatched within 2 working days. If it has been
-          longer,{' '}
-          <a
-            href={`https://wa.me/${store.whatsapp}`}
-            target="_blank"
-            rel="noreferrer"
-            className="link"
-          >
+          No email yet? Orders are dispatched within 2 working days. If it has been longer,{' '}
+          <a href={`https://wa.me/${store.whatsapp}`} target="_blank" rel="noreferrer" className="link">
             message us on WhatsApp
           </a>{' '}
           with your order number.
@@ -107,8 +94,8 @@ export default async function TrackOrderPage() {
           See your order status
         </h2>
         <p className="mb-8 mt-3 max-w-xl text-umber">
-          Enter your order number and mobile number to see whether your order is
-          confirmed, packed or dispatched, along with its courier and tracking ID.
+          Enter your order number and mobile number to see whether your order is confirmed, packed or dispatched, along
+          with its courier and tracking ID.
         </p>
         <Suspense>
           <TrackOrder />

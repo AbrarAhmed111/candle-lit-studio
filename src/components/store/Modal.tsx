@@ -26,15 +26,7 @@ type Props = {
  * closing animation, traps Tab, closes on Escape or a backdrop click, and
  * returns focus to whatever opened it.
  */
-export default function Modal({
-  open,
-  onClose,
-  label,
-  children,
-  className,
-  overlayClassName,
-  closeClassName,
-}: Props) {
+export default function Modal({ open, onClose, label, children, className, overlayClassName, closeClassName }: Props) {
   const [mounted, setMounted] = useState(false)
   const [closing, setClosing] = useState(false)
   const panel = useRef<HTMLDivElement>(null)

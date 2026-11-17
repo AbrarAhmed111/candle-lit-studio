@@ -37,8 +37,7 @@ export default function OrderPage() {
       <div className="page py-24 text-center">
         <h1 className="text-5xl italic">We need to check it is you</h1>
         <p className="mx-auto mt-4 max-w-md text-lg text-umber">
-          To open order {number.toUpperCase()}, enter the order number with the mobile
-          number you used at checkout.
+          To open order {number.toUpperCase()}, enter the order number with the mobile number you used at checkout.
         </p>
         <Link href={`/track-order?order=${number.toUpperCase()}`} className="btn-primary mt-8">
           Track this order
@@ -52,12 +51,9 @@ export default function OrderPage() {
       <div className="flex items-center gap-6 bg-soot p-6 text-ivory sm:p-10">
         <CandleArt shape="pillar" wax="#EFE3CB" vessel="#EFE3CB" lit className="h-28 w-auto shrink-0 sm:h-36" />
         <div>
-          <h1 className="text-4xl italic sm:text-5xl">
-            Thank you, {order.customer.name.split(' ')[0]}.
-          </h1>
+          <h1 className="text-4xl italic sm:text-5xl">Thank you, {order.customer.name.split(' ')[0]}.</h1>
           <p className="mt-3 max-w-lg text-wax/85">
-            We have received your order. We will call or WhatsApp{' '}
-            {order.customer.phone} to confirm it before we pack.
+            We have received your order. We will call or WhatsApp {order.customer.phone} to confirm it before we pack.
             {order.customer.email && ` A confirmation is on its way to ${order.customer.email}.`}
           </p>
         </div>

@@ -6,7 +6,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { ChevronDown, Heart, Menu, Search, ShoppingBag, User, X } from 'lucide-react'
 import clsx from 'clsx'
 import CartDrawer from './CartDrawer'
-import { categories } from '@/data/products'
+import { categories, childrenOf, topCategories } from '@/data/products'
 import { store } from '@/data/store'
 import { useAppDispatch, useAppSelector } from '@/store/store'
 import { setDrawer } from '@/store/cart/CartSlice'
@@ -71,7 +71,8 @@ export default function Header() {
   }, [menuOpen, searchOpen])
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
-  const shopActive = pathname === '/shop' || (pathname.startsWith('/collections/') && !isActive('/collections/gift-sets'))
+  const shopActive =
+    pathname === '/shop' || (pathname.startsWith('/collections/') && !isActive('/collections/gift-sets'))
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
@@ -88,8 +89,7 @@ export default function Header() {
   }
 
   const overHero = darkHeroPaths.includes(pathname) && !scrolled && !searchOpen
-  const iconBtn =
-    'relative grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-caramel/15'
+  const iconBtn = 'relative grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-caramel/15'
 
   return (
     <>
@@ -133,24 +133,44 @@ export default function Header() {
 
           <nav aria-label="Main" className="hidden items-center gap-8 text-[0.95rem] lg:flex">
             <div className="group relative">
-              <Link href="/shop" aria-current={shopActive ? 'page' : undefined} className="flex items-center gap-1 py-5">
+              <Link
+                href="/shop"
+                aria-current={shopActive ? 'page' : undefined}
+                className="flex items-center gap-1 py-5"
+              >
                 <span className={clsx('draw-link', shopActive && 'is-current')}>Shop</span>
                 <ChevronDown size={15} className="transition-transform duration-300 group-hover:rotate-180" />
               </Link>
               <div className="invisible absolute -left-4 top-full w-72 translate-y-2 rounded-2xl border border-hairline bg-linen p-2 text-espresso opacity-0 shadow-[0_30px_60px_-30px_rgba(46,31,23,0.5)] transition-all duration-300 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-                <Link href="/shop" className="block rounded-xl px-3.5 py-2.5 font-medium transition-colors hover:bg-wax">
+                <Link
+                  href="/shop"
+                  className="block rounded-xl px-3.5 py-2.5 font-medium transition-colors hover:bg-wax"
+                >
                   All candles
                 </Link>
-                {categories.map(c => (
-                  <Link
-                    key={c.slug}
-                    href={`/collections/${c.slug}`}
-                    className="block rounded-xl px-3.5 py-2.5 transition-colors hover:bg-wax"
-                  >
-                    {c.name}
-                  </Link>
+                {topCategories().map(c => (
+                  <div key={c.slug}>
+                    <Link
+                      href={`/collections/${c.slug}`}
+                      className="block rounded-xl px-3.5 py-2.5 transition-colors hover:bg-wax"
+                    >
+                      {c.name}
+                    </Link>
+                    {childrenOf(c.slug).map(sub => (
+                      <Link
+                        key={sub.slug}
+                        href={`/collections/${sub.slug}`}
+                        className="block rounded-xl py-2 pl-7 pr-3.5 text-[0.9rem] text-umber transition-colors hover:bg-wax hover:text-espresso"
+                      >
+                        {sub.name}
+                      </Link>
+                    ))}
+                  </div>
                 ))}
-                <Link href="/shop?sale=1" className="block rounded-xl px-3.5 py-2.5 text-wine transition-colors hover:bg-wax">
+                <Link
+                  href="/shop?sale=1"
+                  className="block rounded-xl px-3.5 py-2.5 text-wine transition-colors hover:bg-wax"
+                >
                   On sale
                 </Link>
               </div>
@@ -247,7 +267,9 @@ export default function Header() {
             <nav aria-label="Mobile" className="flex flex-col">
               {[
                 { href: '/shop', label: 'All candles' },
-                ...categories.map(c => ({ href: `/collections/${c.slug}`, label: c.name })),
+                ...categories
+                  .filter(c => !c.archived)
+                  .map(c => ({ href: `/collections/${c.slug}`, label: c.parent ? `– ${c.name}` : c.name })),
               ].map((l, i) => (
                 <Link
                   key={l.href}

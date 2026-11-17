@@ -3,15 +3,18 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FormEvent, useRef, useState } from 'react'
-import { Banknote, Lock } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import ProductPhoto from '@/components/store/ProductPhoto'
 import OrderSummary from '@/components/store/OrderSummary'
+import EasypaisaPayment, { type PaymentErrors } from '@/components/store/EasypaisaPayment'
+import { cleanReference, validReference } from '@/lib/payments'
 import { cities } from '@/data/store'
 import { computeTotals, formatPKR, normalisePkMobile } from '@/lib/pricing'
 import { nextOrderNumber, rememberOrderAccess, saveOrder } from '@/lib/orders'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { placeOrder } from '@/lib/actions/store'
 import toast from 'react-hot-toast'
+import { resetCartId, useCartId, useSaveCart } from '@/components/store/useCartRecovery'
 import { useAppDispatch, useAppSelector } from '@/store/store'
 import { clearCart } from '@/store/cart/CartSlice'
 import type { Order } from '@/types'
@@ -24,6 +27,7 @@ type Fields = {
   area: string
   address: string
   landmark: string
+  postalCode: string
   notes: string
 }
 
@@ -35,20 +39,19 @@ const empty: Fields = {
   area: '',
   address: '',
   landmark: '',
+  postalCode: '',
   notes: '',
 }
 
 const validate = (f: Fields) => {
   const e: Partial<Record<keyof Fields, string>> = {}
   if (f.name.trim().length < 3) e.name = 'Enter your full name.'
-  if (!normalisePkMobile(f.phone))
-    e.phone = 'Enter a Pakistani mobile number, like 0300 1234567.'
-  if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email))
-    e.email = 'Enter an email address like name@example.com, or leave it empty.'
+  if (!normalisePkMobile(f.phone)) e.phone = 'Enter a Pakistani mobile number, like 0300 1234567.'
+  if (!f.email.trim()) e.email = 'Enter your email address. We send your order confirmation and payment updates there.'
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) e.email = 'Enter an email address like name@example.com.'
   if (!f.city) e.city = 'Choose your city.'
   if (f.area.trim().length < 2) e.area = 'Enter your area or sector.'
-  if (f.address.trim().length < 8)
-    e.address = 'Enter your full address with house and street number.'
+  if (f.address.trim().length < 8) e.address = 'Enter your full address with house and street number.'
   return e
 }
 
@@ -56,19 +59,26 @@ export default function CheckoutPage() {
   const router = useRouter()
   const dispatch = useAppDispatch()
   const { items, couponCode, hydrated } = useAppSelector(s => s.cart)
-  const totals = computeTotals(items, couponCode)
   const [fields, setFields] = useState<Fields>(empty)
+  // Delivery depends on where the parcel goes
+  const totals = computeTotals(items, couponCode, { city: fields.city, area: fields.area })
+  const cartId = useCartId()
   const [errors, setErrors] = useState<Partial<Record<keyof Fields, string>>>({})
   const [placing, setPlacing] = useState(false)
   const [placeError, setPlaceError] = useState<string | null>(null)
+  // Easypaisa transfer details
+  const [reference, setReference] = useState('')
+  const [proof, setProof] = useState<string | null>(null)
+  const [payErrors, setPayErrors] = useState<PaymentErrors>({})
   const formRef = useRef<HTMLFormElement>(null)
 
-  const set = (key: keyof Fields) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
-  ) => {
-    setFields(f => ({ ...f, [key]: e.target.value }))
-    if (errors[key]) setErrors(er => ({ ...er, [key]: undefined }))
-  }
+  useSaveCart(cartId, fields, totals)
+
+  const set =
+    (key: keyof Fields) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      setFields(f => ({ ...f, [key]: e.target.value }))
+      if (errors[key]) setErrors(er => ({ ...er, [key]: undefined }))
+    }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -78,6 +88,14 @@ export default function CheckoutPage() {
     const first = Object.keys(found)[0]
     if (first) {
       formRef.current?.querySelector<HTMLElement>(`[name="${first}"]`)?.focus()
+      return
+    }
+    const pay: PaymentErrors = {}
+    if (!validReference(reference)) pay.reference = 'Enter the transaction ID from your Easypaisa receipt.'
+    if (!proof) pay.proof = 'Add a screenshot of your payment.'
+    setPayErrors(pay)
+    if (pay.reference || pay.proof) {
+      formRef.current?.querySelector<HTMLElement>(`[name="${pay.reference ? 'reference' : 'proof'}"]`)?.focus()
       return
     }
 
@@ -90,15 +108,18 @@ export default function CheckoutPage() {
         customer: {
           name: fields.name.trim(),
           phone: fields.phone,
-          email: fields.email.trim() || undefined,
+          email: fields.email.trim(),
           city: fields.city,
           area: fields.area.trim(),
           address: fields.address.trim(),
           landmark: fields.landmark.trim() || undefined,
+          postalCode: fields.postalCode.trim() || undefined,
           notes: fields.notes.trim() || undefined,
         },
-        lines: totals.lines.map(l => ({ variantId: l.variant.id, qty: l.qty })),
+        lines: totals.lines.map(l => ({ variantId: l.variant.id, colour: l.colour, qty: l.qty })),
         couponCode: totals.coupon?.code ?? null,
+        cartId,
+        payment: { reference, proof: proof! },
       })
       if (!result.ok) {
         setPlacing(false)
@@ -107,6 +128,7 @@ export default function CheckoutPage() {
         return
       }
       rememberOrderAccess(result.data.number, result.data.accessToken)
+      resetCartId()
       router.push(`/order/${result.data.number}?placed=1&t=${result.data.accessToken}`)
       dispatch(clearCart())
       return
@@ -119,17 +141,19 @@ export default function CheckoutPage() {
       customer: {
         name: fields.name.trim(),
         phone: normalisePkMobile(fields.phone)!,
-        email: fields.email.trim() || undefined,
+        email: fields.email.trim(),
         city: fields.city,
         area: fields.area.trim(),
         address: fields.address.trim(),
         landmark: fields.landmark.trim() || undefined,
+        postalCode: fields.postalCode.trim() || undefined,
         notes: fields.notes.trim() || undefined,
       },
       lines: totals.lines.map(l => ({
         productId: l.product.id,
         name: l.product.name,
         variant: l.variant.label,
+        colour: l.colour,
         qty: l.qty,
         unitPrice: l.unitPrice,
         originalPrice: l.variant.price,
@@ -139,8 +163,9 @@ export default function CheckoutPage() {
       couponDiscount: totals.couponDiscount,
       shipping: totals.shipping,
       total: totals.total,
-      paymentMethod: 'Cash on Delivery',
-      paymentStatus: 'Pending Collection',
+      paymentMethod: 'Easypaisa',
+      paymentStatus: 'Pending Verification',
+      payment: { reference: cleanReference(reference), submittedAt: new Date().toISOString() },
     }
     saveOrder(order)
     router.push(`/order/${order.number}?placed=1`)
@@ -155,9 +180,7 @@ export default function CheckoutPage() {
     return (
       <div className="page py-24 text-center">
         <h1 className="text-5xl italic">Nothing to check out yet</h1>
-        <p className="mx-auto mt-4 max-w-sm text-lg text-umber">
-          Add a candle to your cart first.
-        </p>
+        <p className="mx-auto mt-4 max-w-sm text-lg text-umber">Add a candle to your cart first.</p>
         <Link href="/shop" className="btn-primary mt-8">
           Shop all candles
         </Link>
@@ -235,8 +258,7 @@ export default function CheckoutPage() {
                 {field('email', 'Email', {
                   type: 'email',
                   autoComplete: 'email',
-                  optional: true,
-                  hint: 'For your order confirmation and tracking number.',
+                  hint: 'For your order confirmation, payment updates and tracking number.',
                 })}
               </div>
             </div>
@@ -279,12 +301,16 @@ export default function CheckoutPage() {
                   placeholder: 'House 12, Street 8, Block C',
                 })}
               </div>
-              <div className="sm:col-span-2">
-                {field('landmark', 'Nearest landmark', {
-                  optional: true,
-                  placeholder: 'Opposite Al-Fatah store',
-                })}
-              </div>
+              {field('landmark', 'Nearest landmark', {
+                optional: true,
+                placeholder: 'Opposite Al-Fatah store',
+              })}
+              {field('postalCode', 'Postal code', {
+                optional: true,
+                inputMode: 'numeric',
+                autoComplete: 'postal-code',
+                placeholder: '87300',
+              })}
               <div className="sm:col-span-2">
                 <label htmlFor="notes" className="field-label">
                   Order notes <span className="font-normal text-umber">(optional)</span>
@@ -306,15 +332,21 @@ export default function CheckoutPage() {
             <h2 id="payment-h" className="text-3xl">
               Payment
             </h2>
-            <div className="mt-6 flex items-start gap-4 rounded-xl border border-espresso bg-linen p-5">
-              <Banknote size={24} className="mt-0.5 shrink-0 text-caramel" />
-              <div>
-                <p className="font-medium">Cash on delivery</p>
-                <p className="mt-1 text-[0.95rem] text-umber">
-                  Pay {formatPKR(totals.total)} in cash when the courier hands you
-                  the parcel. Nothing is charged now.
-                </p>
-              </div>
+            <div className="mt-6">
+              <EasypaisaPayment
+                amount={fields.city ? totals.total : null}
+                reference={reference}
+                onReference={value => {
+                  setReference(value)
+                  setPayErrors(e => ({ ...e, reference: undefined }))
+                }}
+                proof={proof}
+                onProof={path => {
+                  setProof(path)
+                  if (path) setPayErrors(e => ({ ...e, proof: undefined }))
+                }}
+                errors={payErrors}
+              />
             </div>
           </section>
         </div>
@@ -322,7 +354,7 @@ export default function CheckoutPage() {
         <div className="lg:sticky lg:top-36 lg:self-start">
           <ul className="mb-4 divide-y divide-hairline border-y border-hairline">
             {totals.lines.map(l => (
-              <li key={l.variant.id} className="flex items-center gap-4 py-3">
+              <li key={`${l.variant.id}:${l.colour ?? ''}`} className="flex items-center gap-4 py-3">
                 <div
                   className="alcove h-16 w-14 shrink-0 overflow-hidden"
                   style={{ backgroundColor: l.product.art.bg }}
@@ -332,7 +364,8 @@ export default function CheckoutPage() {
                 <div className="min-w-0 flex-1 text-sm">
                   <p className="truncate font-medium">{l.product.name}</p>
                   <p className="text-umber">
-                    {l.variant.label}, qty {l.qty}
+                    {l.variant.label}
+                    {l.colour && `, ${l.colour}`}, qty {l.qty}
                   </p>
                 </div>
                 <p className="text-sm">{formatPKR(l.lineTotal)}</p>
@@ -346,7 +379,7 @@ export default function CheckoutPage() {
               </p>
             )}
             <button type="submit" disabled={placing} className="btn-primary w-full">
-              {placing ? 'Placing your order…' : `Place order, pay ${formatPKR(totals.total)} on delivery`}
+              {placing ? 'Placing your order…' : `Place order, ${formatPKR(totals.total)} paid by Easypaisa`}
             </button>
             <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-sm text-umber">
               <Lock size={13} /> Your details are used only to deliver this order.

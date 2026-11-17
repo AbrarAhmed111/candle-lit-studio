@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { FaFacebookF, FaInstagram, FaWhatsapp } from 'react-icons/fa'
-import { categories } from '@/data/products'
+import { topCategories } from '@/data/products'
 import { builtBy, store } from '@/data/store'
 import NewsletterForm from './NewsletterForm'
 import Logo from '@/components/Logo'
@@ -24,7 +24,7 @@ export default function Footer() {
 
         <FooterList title="Shop">
           <Link href="/shop">All candles</Link>
-          {categories.map(c => (
+          {topCategories().map(c => (
             <Link key={c.slug} href={`/collections/${c.slug}`}>
               {c.name}
             </Link>
@@ -107,15 +107,7 @@ function FooterList({ title, children }: { title: string; children: React.ReactN
   )
 }
 
-function Social({
-  href,
-  label,
-  children,
-}: {
-  href: string
-  label: string
-  children: React.ReactNode
-}) {
+function Social({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
   return (
     <a
       href={href}

@@ -30,10 +30,7 @@ export default async function PolicyPage({ params }: Props) {
                 <Link
                   href={`/policies/${key}`}
                   aria-current={key === slug ? 'page' : undefined}
-                  className={clsx(
-                    'hover:text-caramel',
-                    key === slug ? 'font-medium text-espresso' : 'text-umber',
-                  )}
+                  className={clsx('hover:text-caramel', key === slug ? 'font-medium text-espresso' : 'text-umber')}
                 >
                   {p.title}
                 </Link>

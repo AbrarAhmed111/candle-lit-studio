@@ -15,9 +15,7 @@ export default function CandleCarePage() {
       <div className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1.5fr] lg:gap-20">
         <div>
           <h1 className="text-5xl lg:text-6xl">Candle care</h1>
-          <p className="mt-4 text-lg text-umber">
-            Four habits that make a candle burn cleaner and last longer.
-          </p>
+          <p className="mt-4 text-lg text-umber">Four habits that make a candle burn cleaner and last longer.</p>
           <div className="alcove mt-10 hidden aspect-[4/5] max-w-xs items-end justify-center bg-wax lg:flex">
             <CandleArt shape="pillar" wax="#C98E52" vessel="#C98E52" lit className="h-[85%] w-auto" />
           </div>

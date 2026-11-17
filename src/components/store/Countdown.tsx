@@ -29,10 +29,7 @@ export default function Countdown({ endsAt }: { endsAt: string }) {
         const value = Math.floor(left / ms)
         left -= value * ms
         return (
-          <div
-            key={label}
-            className="min-w-[3.6rem] rounded-2xl bg-soot/25 px-2 py-2.5 text-center backdrop-blur-sm"
-          >
+          <div key={label} className="min-w-[3.6rem] rounded-2xl bg-soot/25 px-2 py-2.5 text-center backdrop-blur-sm">
             <span className="block font-display text-3xl tabular-nums leading-none">
               {now === null ? '--' : String(value).padStart(2, '0')}
             </span>

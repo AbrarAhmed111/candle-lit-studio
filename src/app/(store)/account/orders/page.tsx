@@ -14,8 +14,7 @@ export default function AccountOrders() {
   const [filter, setFilter] = useState<(typeof filters)[number]>('All')
 
   const match = (status: string, f: (typeof filters)[number]) =>
-    f === 'All' ||
-    (f === 'On the way' ? status !== 'Delivered' && status !== 'Cancelled' : status === f)
+    f === 'All' || (f === 'On the way' ? status !== 'Delivered' && status !== 'Cancelled' : status === f)
   const shown = orders?.filter(o => match(o.status, filter)) ?? []
 
   return (

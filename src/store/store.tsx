@@ -1,11 +1,9 @@
 import { configureStore, combineReducers } from '@reduxjs/toolkit'
 import { useDispatch, useSelector, type TypedUseSelectorHook } from 'react-redux'
-import sampleReducer from './sample/SampleSlice'
 import cartReducer from './cart/CartSlice'
 import wishlistReducer from './wishlist/WishlistSlice'
 
 const rootReducer = combineReducers({
-  sampleData: sampleReducer,
   cart: cartReducer,
   wishlist: wishlistReducer,
 })

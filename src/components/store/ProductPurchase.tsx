@@ -17,18 +17,18 @@ export default function ProductPurchase({ product }: { product: Product }) {
   const dispatch = useAppDispatch()
   const router = useRouter()
   const saved = useAppSelector(s => s.wishlist.ids.includes(product.id))
-  const [variantId, setVariantId] = useState(
-    (product.variants.find(v => v.stock > 0) ?? product.variants[0]).id,
-  )
+  const [variantId, setVariantId] = useState((product.variants.find(v => v.stock > 0) ?? product.variants[0]).id)
   const [qty, setQty] = useState(1)
+  const colours = product.colours ?? []
+  // The first colour is chosen to start with, and shown by name
+  const [colour, setColour] = useState(colours[0]?.name)
   const [sharing, setSharing] = useState(false)
   const cartEmpty = useAppSelector(s => s.cart.items.length === 0)
 
   const variant = product.variants.find(v => v.id === variantId)!
-  const inCart = useAppSelector(
-    s =>
-      s.cart.items.find(i => i.productId === product.id && i.variantId === variantId)
-        ?.qty ?? 0,
+  // Every colour of a size shares its stock
+  const inCart = useAppSelector(s =>
+    s.cart.items.filter(i => i.productId === product.id && i.variantId === variantId).reduce((n, i) => n + i.qty, 0),
   )
   const available = Math.max(0, variant.stock - inCart)
   const price = salePrice(product, variant)
@@ -59,7 +59,7 @@ export default function ProductPurchase({ product }: { product: Product }) {
     if (!add()) return
     // The drawer greets the first item only. After that a toast is enough.
     if (first) dispatch(setDrawer(true))
-    else toast.success(`${product.name} added to cart`)
+    else toast.success(`${product.name}${colour ? `, ${colour},` : ''} added to cart`)
   }
 
   const add = () => {
@@ -67,7 +67,7 @@ export default function ProductPurchase({ product }: { product: Product }) {
       toast.error(`You already have all ${variant.stock} in your cart`)
       return false
     }
-    dispatch(addItem({ productId: product.id, variantId, qty: Math.min(qty, available) }))
+    dispatch(addItem({ productId: product.id, variantId, colour, qty: Math.min(qty, available) }))
     return true
   }
 
@@ -119,6 +119,40 @@ export default function ProductPurchase({ product }: { product: Product }) {
         </fieldset>
       )}
 
+      {colours.length > 0 && (
+        <fieldset className="mt-7">
+          <legend className="mb-2.5 text-sm font-medium">
+            Colour: <span className="font-normal text-umber">{colour}</span>
+          </legend>
+          <div className="flex flex-wrap gap-2.5">
+            {colours.map(c => (
+              <label
+                key={c.name}
+                title={c.name}
+                className={clsx(
+                  'grid h-12 w-12 cursor-pointer place-items-center rounded-full border-2 transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-caramel',
+                  c.name === colour ? 'border-espresso' : 'border-transparent hover:border-hairline',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="colour"
+                  className="sr-only"
+                  checked={c.name === colour}
+                  onChange={() => setColour(c.name)}
+                  aria-label={c.name}
+                />
+                <span
+                  aria-hidden
+                  className="h-9 w-9 rounded-full border border-espresso/15"
+                  style={{ backgroundColor: c.hex }}
+                />
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
       <p className="mt-6 text-sm" role="status">
         {soldOut ? (
           <span className="text-wine">Sold out in this size</span>
@@ -153,12 +187,7 @@ export default function ProductPurchase({ product }: { product: Product }) {
             <Plus size={16} />
           </button>
         </div>
-        <button
-          type="button"
-          disabled={soldOut}
-          onClick={addAndGreet}
-          className="btn-outline flex-1"
-        >
+        <button type="button" disabled={soldOut} onClick={addAndGreet} className="btn-outline flex-1">
           {soldOut ? 'Sold out' : 'Add to cart'}
         </button>
       </div>
@@ -168,7 +197,7 @@ export default function ProductPurchase({ product }: { product: Product }) {
         onClick={() => add() && router.push('/checkout')}
         className="btn-primary mt-3 w-full"
       >
-        Buy now, pay on delivery
+        Buy now
       </button>
 
       <div className="mt-5 flex gap-6 text-sm">
@@ -201,10 +230,16 @@ export default function ProductPurchase({ product }: { product: Product }) {
               <p className="truncate font-display text-lg leading-tight">{product.name}</p>
               <p className="text-sm text-umber">
                 {product.variants.length > 1 && `${variant.label}, `}
+                {colour && `${colour}, `}
                 <span className="font-medium text-espresso">{formatPKR(price)}</span>
               </p>
             </div>
-            <button type="button" disabled={soldOut} onClick={addAndGreet} className="btn-primary min-h-11 shrink-0 px-6 text-sm">
+            <button
+              type="button"
+              disabled={soldOut}
+              onClick={addAndGreet}
+              className="btn-primary min-h-11 shrink-0 px-6 text-sm"
+            >
               {soldOut ? 'Sold out' : 'Add to cart'}
             </button>
           </div>
@@ -212,10 +247,10 @@ export default function ProductPurchase({ product }: { product: Product }) {
       )}
 
       <ul className="mt-6 space-y-2 border-t border-hairline pt-6 text-[0.95rem] text-umber">
-        <li>Cash on delivery, anywhere in Pakistan.</li>
+        <li>Pay by Easypaisa. Delivery anywhere in Pakistan.</li>
         <li>
-          Delivery {formatPKR(store.shippingFee)}, free over {formatPKR(store.freeShippingOver)}.
-          Arrives in {store.deliveryEstimate}.
+          Delivery {formatPKR(store.shippingFee)}, free over {formatPKR(store.freeShippingOver)}. Arrives in{' '}
+          {store.deliveryEstimate}.
         </li>
         <li>Damaged in transit? We replace it.</li>
       </ul>

@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import AccountNav from '@/components/account/AccountNav'
 import Link from 'next/link'
 import { ArrowUpRight, LayoutDashboard } from 'lucide-react'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { getStaffAccess } from '@/lib/auth'
 
 export const metadata: Metadata = {
@@ -17,12 +16,6 @@ export default async function AccountLayout({ children }: { children: ReactNode 
 
   return (
     <div className="page pt-8 lg:pt-12">
-      {!isSupabaseConfigured && (
-        <p className="mb-6 rounded-xl bg-wax px-4 py-2.5 text-sm text-umber">
-          Demo account. Sign-in is not connected yet, so this shows a sample customer and is saved
-          in this browser only.
-        </p>
-      )}
       {staff && (
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-espresso p-5 text-ivory sm:p-6">
           <div className="flex items-center gap-4">

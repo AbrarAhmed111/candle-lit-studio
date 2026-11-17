@@ -8,9 +8,9 @@ import { addItem, removeItem } from '@/store/cart/CartSlice'
 export function useCartRemove() {
   const dispatch = useAppDispatch()
 
-  return (line: { productId: string; variantId: string; qty: number; name: string }) => {
-    const { productId, variantId, qty, name } = line
-    dispatch(removeItem({ productId, variantId }))
+  return (line: { productId: string; variantId: string; colour?: string; qty: number; name: string }) => {
+    const { productId, variantId, colour, qty, name } = line
+    dispatch(removeItem({ productId, variantId, colour }))
     toast(
       t => (
         <span className="flex items-center gap-4">
@@ -18,7 +18,7 @@ export function useCartRemove() {
           <button
             type="button"
             onClick={() => {
-              dispatch(addItem({ productId, variantId, qty }))
+              dispatch(addItem({ productId, variantId, colour, qty }))
               toast.dismiss(t.id)
             }}
             className="font-medium text-ember underline underline-offset-4 hover:text-ivory"
@@ -27,7 +27,7 @@ export function useCartRemove() {
           </button>
         </span>
       ),
-      { id: `removed-${variantId}`, duration: 5000 },
+      { id: `removed-${variantId}-${colour ?? ''}`, duration: 5000 },
     )
   }
 }

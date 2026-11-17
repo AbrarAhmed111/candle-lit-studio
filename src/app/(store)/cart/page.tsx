@@ -7,11 +7,35 @@ import OrderSummary from '@/components/store/OrderSummary'
 import PopularPicks from '@/components/store/PopularPicks'
 import { computeTotals, formatPKR } from '@/lib/pricing'
 import { useAppDispatch, useAppSelector } from '@/store/store'
-import { setQty } from '@/store/cart/CartSlice'
+import { hydrateCart, setQty } from '@/store/cart/CartSlice'
+import { useEffect } from 'react'
+import toast from 'react-hot-toast'
+import { getSavedCart } from '@/lib/actions/store'
 import { useCartRemove } from '@/components/store/useCartRemove'
 
 export default function CartPage() {
   const dispatch = useAppDispatch()
+
+  // The link in a cart reminder email brings the saved cart back on any device
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('restore')
+    if (!id) return
+    getSavedCart(id).then(result => {
+      if (!result.ok || !result.data?.length) return
+      dispatch(
+        hydrateCart({
+          items: result.data.map(i => ({
+            productId: i.productId,
+            variantId: i.variantId,
+            colour: i.colour,
+            qty: i.qty,
+          })),
+        }),
+      )
+      toast.success('Your cart is back')
+      window.history.replaceState(null, '', '/cart')
+    })
+  }, [dispatch])
   const remove = useCartRemove()
   const { items, couponCode, hydrated } = useAppSelector(s => s.cart)
   const totals = computeTotals(items, couponCode)
@@ -66,8 +90,8 @@ export default function CartPage() {
 
       <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_24rem] lg:gap-16">
         <ul className="divide-y divide-hairline border-y border-hairline">
-          {totals.lines.map(({ product, variant, qty, unitPrice, lineTotal, lineOriginal }) => (
-            <li key={variant.id} className="flex gap-4 py-6 sm:gap-6">
+          {totals.lines.map(({ product, variant, colour, qty, unitPrice, lineTotal, lineOriginal }) => (
+            <li key={`${variant.id}:${colour ?? ''}`} className="flex gap-4 py-6 sm:gap-6">
               <Link
                 href={`/products/${product.slug}`}
                 className="alcove h-28 w-24 shrink-0 overflow-hidden sm:h-36 sm:w-28"
@@ -84,20 +108,19 @@ export default function CartPage() {
                         {product.name}
                       </Link>
                     </h2>
-                    <p className="mt-1 text-sm text-umber">{variant.label}</p>
+                    <p className="mt-1 text-sm text-umber">
+                      {variant.label}
+                      {colour && `, ${colour}`}
+                    </p>
                     <p className="mt-1 text-sm">
                       {formatPKR(unitPrice)}
-                      {unitPrice < variant.price && (
-                        <s className="ml-2 text-umber">{formatPKR(variant.price)}</s>
-                      )}
+                      {unitPrice < variant.price && <s className="ml-2 text-umber">{formatPKR(variant.price)}</s>}
                     </p>
                   </div>
                   <p className="shrink-0 text-right font-medium">
                     {formatPKR(lineTotal)}
                     {lineTotal < lineOriginal && (
-                      <s className="block text-sm font-normal text-umber">
-                        {formatPKR(lineOriginal)}
-                      </s>
+                      <s className="block text-sm font-normal text-umber">{formatPKR(lineOriginal)}</s>
                     )}
                   </p>
                 </div>
@@ -107,7 +130,7 @@ export default function CartPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        dispatch(setQty({ productId: product.id, variantId: variant.id, qty: qty - 1 }))
+                        dispatch(setQty({ productId: product.id, variantId: variant.id, colour, qty: qty - 1 }))
                       }
                       disabled={qty <= 1}
                       aria-label={`Decrease quantity of ${product.name}`}
@@ -121,7 +144,7 @@ export default function CartPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        dispatch(setQty({ productId: product.id, variantId: variant.id, qty: qty + 1 }))
+                        dispatch(setQty({ productId: product.id, variantId: variant.id, colour, qty: qty + 1 }))
                       }
                       disabled={qty >= variant.stock}
                       aria-label={`Increase quantity of ${product.name}`}
@@ -133,7 +156,7 @@ export default function CartPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      remove({ productId: product.id, variantId: variant.id, qty, name: product.name })
+                      remove({ productId: product.id, variantId: variant.id, colour, qty, name: product.name })
                     }
                     className="flex min-h-11 items-center gap-1.5 text-sm text-umber hover:text-wine"
                   >
@@ -141,9 +164,7 @@ export default function CartPage() {
                   </button>
                 </div>
                 {qty >= variant.stock && (
-                  <p className="mt-2 text-sm text-wine">
-                    That is all {variant.stock} we have in stock.
-                  </p>
+                  <p className="mt-2 text-sm text-wine">That is all {variant.stock} we have in stock.</p>
                 )}
               </div>
             </li>

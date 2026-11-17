@@ -2,9 +2,9 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import clsx from 'clsx'
 import { useAccount } from '@/components/account/useAccount'
 import { normalisePkMobile } from '@/lib/pricing'
+import Switch from '@/components/ui/Switch'
 
 export default function AccountProfile() {
   const { account, update, ready } = useAccount()
@@ -52,11 +52,6 @@ export default function AccountProfile() {
       title: 'Email newsletter',
       text: 'New scents, seasonal pours and offers. About twice a month.',
     },
-    {
-      key: 'whatsapp' as const,
-      title: 'WhatsApp order updates',
-      text: 'Confirmation, dispatch and delivery messages for your orders.',
-    },
   ]
 
   return (
@@ -64,7 +59,11 @@ export default function AccountProfile() {
       <h1 className="text-5xl lg:text-6xl">Profile and preferences</h1>
       <p className="mt-3 text-lg text-umber">The details we use to reach you about your orders.</p>
 
-      <form onSubmit={submit} noValidate className="mt-8 max-w-xl rounded-2xl border border-hairline bg-linen p-6 sm:p-8">
+      <form
+        onSubmit={submit}
+        noValidate
+        className="mt-8 max-w-xl rounded-2xl border border-hairline bg-linen p-6 sm:p-8"
+      >
         <h2 className="text-2xl">Your details</h2>
         <div className="mt-5 space-y-4">
           <div>
@@ -94,7 +93,10 @@ export default function AccountProfile() {
         </button>
       </form>
 
-      <section className="mt-6 max-w-xl rounded-2xl border border-hairline bg-linen p-6 sm:p-8" aria-labelledby="prefs-h">
+      <section
+        className="mt-6 max-w-xl rounded-2xl border border-hairline bg-linen p-6 sm:p-8"
+        aria-labelledby="prefs-h"
+      >
         <h2 id="prefs-h" className="text-2xl">
           Messages from us
         </h2>
@@ -109,21 +111,7 @@ export default function AccountProfile() {
                   </p>
                   <p className="text-sm text-umber">{p.text}</p>
                 </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={on}
-                  aria-labelledby={`pref-${p.key}`}
-                  onClick={() => setPref(p.key, !on)}
-                  className={clsx('relative h-7 w-12 shrink-0 rounded-full transition-colors', on ? 'bg-sage' : 'bg-hairline')}
-                >
-                  <span
-                    className={clsx(
-                      'absolute left-1 top-1 h-5 w-5 rounded-full bg-linen transition-transform',
-                      on && 'translate-x-5',
-                    )}
-                  />
-                </button>
+                <Switch checked={on} onChange={() => setPref(p.key, !on)} labelledBy={`pref-${p.key}`} />
               </li>
             )
           })}

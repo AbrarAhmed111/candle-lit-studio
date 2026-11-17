@@ -67,10 +67,7 @@ export default function ShareDialog({ product, open: isOpen, onClose }: Props) {
     >
       {/* What the link looks like when it lands in a chat */}
       <div className="flex items-center gap-4 bg-wax/60 p-5 pr-16">
-        <div
-          className="h-24 w-20 shrink-0 overflow-hidden rounded-2xl"
-          style={{ backgroundColor: product.art.bg }}
-        >
+        <div className="h-24 w-20 shrink-0 overflow-hidden rounded-2xl" style={{ backgroundColor: product.art.bg }}>
           <ProductPhoto product={product} sizes="80px" decorative />
         </div>
         <div className="min-w-0">
@@ -96,9 +93,7 @@ export default function ShareDialog({ product, open: isOpen, onClose }: Props) {
           <button
             type="button"
             className={channel}
-            onClick={() =>
-              open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`)
-            }
+            onClick={() => open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`)}
           >
             <span className={badge} style={{ backgroundColor: '#1877F2' }}>
               <FaFacebookF size={20} />
@@ -109,8 +104,7 @@ export default function ShareDialog({ product, open: isOpen, onClose }: Props) {
             <span
               className={badge}
               style={{
-                background:
-                  'linear-gradient(45deg, #F58529 0%, #DD2A7B 50%, #8134AF 100%)',
+                background: 'linear-gradient(45deg, #F58529 0%, #DD2A7B 50%, #8134AF 100%)',
               }}
             >
               <FaInstagram size={23} />
@@ -118,9 +112,7 @@ export default function ShareDialog({ product, open: isOpen, onClose }: Props) {
             Instagram
           </button>
         </div>
-        <p className="mt-3 text-sm text-umber">
-          Instagram copies the link for you to paste into a story or message.
-        </p>
+        <p className="mt-3 text-sm text-umber">Instagram copies the link for you to paste into a story or message.</p>
 
         <label htmlFor="share-link" className="field-label mt-6">
           Or copy the link

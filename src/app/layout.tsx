@@ -4,6 +4,10 @@ import { Bodoni_Moda, Hanken_Grotesk } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
 import { ReactNode } from 'react'
 import Providers from '@/store/Providers'
+import { loadCatalog } from '@/lib/catalog/server'
+import { seo } from '@/data/content'
+import { store } from '@/data/store'
+import { supabaseUrl } from '@/lib/supabase/config'
 
 const display = Bodoni_Moda({
   subsets: ['latin'],
@@ -18,20 +22,23 @@ const body = Hanken_Grotesk({
   display: 'swap',
 })
 
-export const metadata: Metadata = {
-  // Set NEXT_PUBLIC_SITE_URL to the live domain so shared links resolve
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
-  title: {
-    default: 'Candle Lit Studio | Hand-poured candles, delivered across Pakistan',
-    template: '%s | Candle Lit Studio',
-  },
-  description:
-    'Hand-poured soy candles from Quetta, in scents that feel like home: desi gulab, chai and cardamom, motia and oud. Cash on delivery across Pakistan.',
-  openGraph: {
-    siteName: 'Candle Lit Studio',
-    locale: 'en_PK',
-    type: 'website',
-  },
+// Title and description come from Dashboard > Website (SEO)
+export async function generateMetadata(): Promise<Metadata> {
+  await loadCatalog()
+  return {
+    // Set NEXT_PUBLIC_SITE_URL to the live domain so shared links resolve
+    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
+    title: {
+      default: seo.title,
+      template: `%s | ${store.name}`,
+    },
+    description: seo.description,
+    openGraph: {
+      siteName: store.name,
+      locale: 'en_PK',
+      type: 'website',
+    },
+  }
 }
 
 type RootLayoutProps = {
@@ -42,7 +49,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <Providers>
       <html lang="en" className={`${display.variable} ${body.variable}`}>
-        <head></head>
+        <head>
+          {/* Open connections early to where photos and data come from */}
+          <link rel="preconnect" href="https://images.unsplash.com" />
+          {supabaseUrl && <link rel="preconnect" href={supabaseUrl} crossOrigin="anonymous" />}
+        </head>
         <body suppressHydrationWarning className="antialiased">
           <Toaster
             position="top-center"

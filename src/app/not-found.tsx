@@ -13,17 +13,13 @@ export default function NotFound() {
       <CandleArt shape="pillar" wax="#EFE3CB" vessel="#EFE3CB" className="h-40 w-auto" />
       <h1 className="mt-6 text-5xl italic md:text-6xl">This page has burned out</h1>
       <p className="mx-auto mt-4 max-w-md text-lg text-wax/80">
-        The link is broken or the page has moved. The candles are still where you
-        left them.
+        The link is broken or the page has moved. The candles are still where you left them.
       </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Link href="/" className="btn-light">
           Go to homepage
         </Link>
-        <Link
-          href="/shop"
-          className="btn border border-wax/40 text-ivory hover:border-ember hover:text-ember"
-        >
+        <Link href="/shop" className="btn border border-wax/40 text-ivory hover:border-ember hover:text-ember">
           Shop all candles
         </Link>
       </div>

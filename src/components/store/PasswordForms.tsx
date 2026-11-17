@@ -36,11 +36,14 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <Shell title="Forgot your password?" text="Enter the email you signed up with and we will send you a link to choose a new one.">
+    <Shell
+      title="Forgot your password?"
+      text="Enter the email you signed up with and we will send you a link to choose a new one."
+    >
       {state === 'sent' ? (
         <p role="status" className="mt-8 rounded-xl border border-sage/40 bg-linen p-4">
-          If {email} has an account, a reset link is on its way. Check spam or promotions if it does not arrive in a
-          few minutes.
+          If {email} has an account, a reset link is on its way. Check spam or promotions if it does not arrive in a few
+          minutes.
         </p>
       ) : (
         <form onSubmit={submit} noValidate className="mt-8 space-y-5">

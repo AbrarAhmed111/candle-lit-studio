@@ -25,7 +25,7 @@ export default function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
   const google = () =>
     startGoogle(async () => {
       if (!isSupabaseConfigured) {
-        // Demo: there is no auth backend yet, so open the sample account
+        // Without sign-in connected, go straight to the account page
         router.push('/account')
         return
       }
@@ -38,15 +38,14 @@ export default function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
     e.preventDefault()
     const found: Record<string, string> = {}
     if (isSignup && values.name.trim().length < 3) found.name = 'Enter your full name.'
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email))
-      found.email = 'Enter an email address like name@example.com.'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) found.email = 'Enter an email address like name@example.com.'
     if (values.password.length < 8) found.password = 'Use at least 8 characters.'
     setErrors(found)
     setFailure(null)
     if (Object.keys(found).length > 0) return
 
     if (!isSupabaseConfigured) {
-      setNotice('Opening the demo account…')
+      setNotice('Signing you in…')
       router.push('/account')
       return
     }
@@ -106,12 +105,7 @@ export default function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={google}
-          disabled={googling}
-          className="btn-outline mt-8 w-full gap-3 bg-linen"
-        >
+        <button type="button" onClick={google} disabled={googling} className="btn-outline mt-8 w-full gap-3 bg-linen">
           <FcGoogle size={20} aria-hidden />
           {googling ? 'Opening Google…' : 'Continue with Google'}
         </button>

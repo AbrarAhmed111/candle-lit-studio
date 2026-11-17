@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Check, Heart, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -14,6 +15,7 @@ import type { Product } from '@/types'
 
 export default function ProductCard({ product }: { product: Product }) {
   const dispatch = useAppDispatch()
+  const router = useRouter()
   const saved = useAppSelector(s => s.wishlist.ids.includes(product.id))
   const cartEmpty = useAppSelector(s => s.cart.items.length === 0)
   const { original, sale } = fromPrice(product)
@@ -21,6 +23,7 @@ export default function ProductCard({ product }: { product: Product }) {
   const soldOut = stock === 0
   const firstAvailable = product.variants.find(v => v.stock > 0)
   const hasChoices = product.variants.length > 1
+  const colours = product.colours ?? []
 
   // The plus turns into a tick for a moment so the tap feels answered
   const [added, setAdded] = useState(false)
@@ -32,6 +35,8 @@ export default function ProductCard({ product }: { product: Product }) {
 
   const quickAdd = () => {
     if (!firstAvailable) return
+    // A candle that comes in colours opens its page, where the customer picks one
+    if (colours.length) return router.push(`/products/${product.slug}`)
     setAdded(true)
     dispatch(addItem({ productId: product.id, variantId: firstAvailable.id, qty: 1 }))
     // The drawer greets the first item only. After that a toast is enough.
@@ -50,11 +55,7 @@ export default function ProductCard({ product }: { product: Product }) {
         className="alcove card-media relative aspect-[4/5] overflow-hidden"
         style={{ backgroundColor: product.art.bg }}
       >
-        <Link
-          href={`/products/${product.slug}`}
-          className="absolute inset-0"
-          aria-label={product.name}
-        >
+        <Link href={`/products/${product.slug}`} className="absolute inset-0" aria-label={product.name}>
           <ProductPhoto
             product={product}
             decorative
@@ -81,15 +82,9 @@ export default function ProductCard({ product }: { product: Product }) {
             </span>
           )}
           {product.isNew && !soldOut && (
-            <span className="rounded-xl bg-linen px-2 py-1 text-xs font-medium text-espresso">
-              New
-            </span>
+            <span className="rounded-xl bg-linen px-2 py-1 text-xs font-medium text-espresso">New</span>
           )}
-          {soldOut && (
-            <span className="rounded-xl bg-linen px-2 py-1 text-xs font-medium text-umber">
-              Sold out
-            </span>
-          )}
+          {soldOut && <span className="rounded-xl bg-linen px-2 py-1 text-xs font-medium text-umber">Sold out</span>}
         </div>
 
         <button
@@ -110,26 +105,41 @@ export default function ProductCard({ product }: { product: Product }) {
               {product.name}
             </Link>
           </h3>
-          <p className="mt-1 truncate text-sm text-umber">
-            {product.fragrance ?? product.tagline}
-          </p>
+          <p className="mt-1 truncate text-sm text-umber">{product.fragrance ?? product.tagline}</p>
           <p className="mt-2 flex flex-wrap items-baseline gap-x-2 text-[0.95rem]">
             {hasChoices && <span className="text-sm text-umber">From</span>}
             <span className="font-medium">{formatPKR(sale)}</span>
-            {sale < original && (
-              <s className="text-sm text-umber">{formatPKR(original)}</s>
-            )}
+            {sale < original && <s className="text-sm text-umber">{formatPKR(original)}</s>}
           </p>
-          {!soldOut && stock <= 5 && (
-            <p className="mt-1 text-sm text-wine">Only {stock} left</p>
+          {colours.length > 0 && (
+            <p
+              className="mt-2 flex items-center gap-1.5"
+              aria-label={`Comes in ${colours.map(c => c.name).join(', ')}`}
+            >
+              {colours.slice(0, 5).map(c => (
+                <span
+                  key={c.name}
+                  aria-hidden
+                  title={c.name}
+                  className="h-3.5 w-3.5 rounded-full border border-espresso/20"
+                  style={{ backgroundColor: c.hex }}
+                />
+              ))}
+              {colours.length > 5 && <span className="text-xs text-umber">+{colours.length - 5}</span>}
+            </p>
           )}
+          {!soldOut && stock <= 5 && <p className="mt-1 text-sm text-wine">Only {stock} left</p>}
         </div>
 
         {!soldOut && (
           <button
             type="button"
             onClick={quickAdd}
-            aria-label={`Add ${product.name}${firstAvailable ? `, ${firstAvailable.label},` : ''} to cart`}
+            aria-label={
+              colours.length
+                ? `Choose a colour of ${product.name}`
+                : `Add ${product.name}${firstAvailable ? `, ${firstAvailable.label},` : ''} to cart`
+            }
             className={clsx(
               'mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-[background-color,border-color,color,transform] duration-300 active:scale-90',
               added

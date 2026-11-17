@@ -135,8 +135,8 @@ export default function NewsletterPopup() {
               Unlock 10% off
             </h2>
             <p className="fade-up mt-4 text-umber" style={d(230)}>
-              Join the list and take 10% off your first order. You will hear about new
-              scents, seasonal pours and offers before anyone else.
+              Join the list and take 10% off your first order. You will hear about new scents, seasonal pours and offers
+              before anyone else.
             </p>
 
             <fieldset className="fade-up mt-6" style={d(310)}>

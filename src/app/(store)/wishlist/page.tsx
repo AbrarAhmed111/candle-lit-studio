@@ -44,9 +44,7 @@ export default function WishlistPage() {
   return (
     <div className="page pt-8 lg:pt-12">
       <h1 className="text-5xl lg:text-6xl">Your wishlist</h1>
-      <p className="mt-4 text-umber">
-        {saved.length} saved. Tap the plus to move a candle to your cart.
-      </p>
+      <p className="mt-4 text-umber">{saved.length} saved. Tap the plus to move a candle to your cart.</p>
       <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-4">
         {saved.map(p => (
           <ProductCard key={p.id} product={p} />

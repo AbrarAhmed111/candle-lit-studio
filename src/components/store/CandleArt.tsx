@@ -18,15 +18,7 @@ type CandleArtProps = {
  * Illustrated stand-in for product photography. Each candle is drawn from
  * its own wax and vessel colours until real photos are uploaded.
  */
-export default function CandleArt({
-  shape,
-  wax,
-  vessel,
-  label,
-  lit,
-  flicker,
-  className,
-}: CandleArtProps) {
+export default function CandleArt({ shape, wax, vessel, label, lit, flicker, className }: CandleArtProps) {
   const glow = useId()
 
   const Flame = ({ x, y, s = 1 }: { x: number; y: number; s?: number }) => (

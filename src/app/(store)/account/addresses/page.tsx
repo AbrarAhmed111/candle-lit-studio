@@ -99,7 +99,11 @@ export default function AccountAddresses() {
                     Make default
                   </button>
                 )}
-                <button type="button" onClick={() => setRemoving(a)} className="min-h-11 text-wine underline decoration-1 underline-offset-4">
+                <button
+                  type="button"
+                  onClick={() => setRemoving(a)}
+                  className="min-h-11 text-wine underline decoration-1 underline-offset-4"
+                >
                   Delete
                 </button>
               </div>
@@ -133,8 +137,8 @@ export default function AccountAddresses() {
       >
         <h2 className="pr-10 text-3xl">Delete this address?</h2>
         <p className="mt-2 text-umber">
-          {removing?.label}: {removing?.address}, {removing?.area}, {removing?.city}. Past orders keep their
-          delivery details.
+          {removing?.label}: {removing?.address}, {removing?.area}, {removing?.city}. Past orders keep their delivery
+          details.
         </p>
         <div className="mt-6 flex flex-wrap gap-2">
           <button type="button" onClick={remove} className="btn flex-1 bg-wine text-ivory before:bg-espresso">
@@ -222,7 +226,9 @@ function AddressForm({
             ))}
           </select>
         </div>
-        <div className="sm:col-span-2">{field('address', 'House or flat, street', { autoComplete: 'street-address' })}</div>
+        <div className="sm:col-span-2">
+          {field('address', 'House or flat, street', { autoComplete: 'street-address' })}
+        </div>
         {field('area', 'Area, sector or town')}
         {field('landmark', 'Nearby landmark (optional)')}
       </div>

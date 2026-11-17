@@ -34,9 +34,7 @@ export default function TrackOrder() {
       found = findOrder(number, mobile)
     }
     if (!found)
-      return setError(
-        'No order matches that number and mobile. Check both against your confirmation message.',
-      )
+      return setError('No order matches that number and mobile. Check both against your confirmation message.')
     setError(null)
     setOrder(found)
   }
@@ -82,9 +80,6 @@ export default function TrackOrder() {
         <button type="submit" disabled={busy} className="btn-primary mt-6">
           {busy ? 'Looking…' : 'Find my order'}
         </button>
-        {!isSupabaseConfigured && (
-          <p className="mt-4 text-sm text-umber">Demo order: CND-1024 with 0300 1234567.</p>
-        )}
       </form>
 
       {order && (
