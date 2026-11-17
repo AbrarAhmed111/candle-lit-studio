@@ -1,12 +1,6 @@
 export type CandleShape = 'jar' | 'pillar' | 'tin' | 'taper' | 'set'
 
-export type FragranceFamily =
-  | 'Floral'
-  | 'Woody'
-  | 'Gourmand'
-  | 'Fresh'
-  | 'Earthy'
-  | 'Unscented'
+export type FragranceFamily = 'Floral' | 'Woody' | 'Gourmand' | 'Fresh' | 'Earthy' | 'Unscented'
 
 export type Variant = {
   id: string
@@ -17,6 +11,9 @@ export type Variant = {
   weight?: string
   burnTime?: string
 }
+
+/** A colour a customer can choose. Stock is shared by every colour of a size. */
+export type ProductColour = { name: string; hex: string }
 
 export type Product = {
   id: string
@@ -37,6 +34,8 @@ export type Product = {
   /** Unsplash photo ids, first one is the main photo */
   images: string[]
   variants: Variant[]
+  /** Colours the customer chooses from. Empty or missing means no choice. */
+  colours?: ProductColour[]
   discountPercent?: number
   rating: number
   reviewCount: number
@@ -52,6 +51,15 @@ export type Category = {
   name: string
   description: string
   cover: string
+  /** Parent category, for subcategories */
+  parent?: string
+  /** Photo for category cards and the banner at the top of the category page */
+  image?: string
+  banner?: string
+  seoTitle?: string
+  seoDescription?: string
+  /** Hidden from the store without deleting it */
+  archived?: boolean
 }
 
 export type Review = {
@@ -64,12 +72,16 @@ export type Review = {
   body: string
   date: string
   verified: boolean
+  /** Photos the customer added */
+  images?: string[]
 }
 
 export type CartItem = {
   productId: string
   variantId: string
   qty: number
+  /** Chosen colour name, for products that come in colours */
+  colour?: string
 }
 
 export type Coupon = {
@@ -94,24 +106,37 @@ export type OrderStatus =
   | 'Confirmed'
   | 'Processing'
   | 'Packed'
+  | 'Cancellation Requested'
   | 'Dispatched'
   | 'Delivered'
+  | 'Failed Delivery'
+  | 'Returned'
   | 'Cancelled'
 
-// COD money moves in three steps: customer pays the courier, the courier
-// holds it, then the courier settles with the business.
+// Cash on delivery (Quetta) moves in three steps: customer pays the courier,
+// the courier holds it, then the courier settles with the business.
+// Easypaisa (every other city) is checked by hand: Pending Verification,
+// then Paid or Payment Rejected.
 export type PaymentStatus =
   | 'Pending Collection'
   | 'Collected by Courier'
   | 'Settled to Business'
+  | 'Reconciliation Required'
+  | 'Disputed'
+  | 'Adjusted'
+  | 'Pending Verification'
+  | 'Paid'
+  | 'Payment Rejected'
 
 export type OrderLine = {
   name: string
   variant: string
+  colour?: string
   qty: number
   unitPrice: number
   originalPrice: number
   productId: string
+  variantId?: string
 }
 
 export type Order = {
@@ -126,20 +151,35 @@ export type Order = {
     area: string
     address: string
     landmark?: string
+    postalCode?: string
     notes?: string
   }
   lines: OrderLine[]
+  invoiceNumber?: number
+  whatsappOptIn?: boolean
+  /** Set when the customer asked to cancel */
+  cancelRequest?: { at: string; reason: string }
   subtotal: number
   couponCode?: string
   couponDiscount: number
   shipping: number
   total: number
-  paymentMethod: 'Cash on Delivery'
+  paymentMethod: 'Cash on Delivery' | 'Easypaisa'
   paymentStatus: PaymentStatus
+  /** What the customer sent for an Easypaisa payment */
+  payment?: {
+    reference?: string
+    submittedAt?: string
+    verifiedAt?: string
+    rejectionReason?: string
+    /** Screenshot path in private storage. Only the dashboard gets it. */
+    proof?: string
+  }
   shipment?: {
     courier: string
     trackingId: string
     trackingUrl: string
     dispatchedAt: string
+    notes?: string
   }
 }

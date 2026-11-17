@@ -14,6 +14,19 @@ export type AdminOrder = Order & {
   /** Internal notes, never shown to the customer */
   notes: OrderEvent[]
   cancelReason?: string
+  /** What actually happened with the cash on delivery */
+  cod?: CodDetails
+}
+
+export type CodDetails = {
+  /** Cash the courier says they collected, when it differs from the total */
+  collected?: number
+  /** Courier fees taken out of the settlement */
+  charges: number
+  /** Bank or courier reference for the settlement */
+  reference?: string
+  settledAt?: string
+  notes?: string
 }
 
 export type AdminCustomer = {
@@ -43,6 +56,9 @@ export const paymentFlow: PaymentStatus[] = [
   'Pending Collection',
   'Collected by Courier',
   'Settled to Business',
+  'Reconciliation Required',
+  'Disputed',
+  'Adjusted',
 ]
 
 export const LOW_STOCK = 5
@@ -90,14 +106,19 @@ const historyFor = (order: Order, cancelReason?: string): OrderEvent[] => {
     [0.12, 'Order confirmed with the customer'],
     [1, 'Preparation started'],
     [1.5, 'Order packed'],
-    [2, order.shipment ? `Dispatched with ${order.shipment.courier}, tracking ${order.shipment.trackingId}` : 'Dispatched'],
+    [
+      2,
+      order.shipment
+        ? `Dispatched with ${order.shipment.courier}, tracking ${order.shipment.trackingId}`
+        : 'Dispatched',
+    ],
     [4.5, 'Marked as delivered'],
   ]
   steps.slice(0, reached).forEach(([days, text]) => events.push({ at: iso(placed + days * DAY), text }))
   if (order.paymentStatus !== 'Pending Collection')
-    events.push({ at: iso(placed + 4.6 * DAY), text: 'COD recorded as collected by the courier' })
+    events.push({ at: iso(placed + 4.6 * DAY), text: 'Payment recorded as collected' })
   if (order.paymentStatus === 'Settled to Business')
-    events.push({ at: iso(placed + 11 * DAY), text: 'COD settlement received from the courier' })
+    events.push({ at: iso(placed + 11 * DAY), text: 'Payment settled' })
   return events
 }
 
@@ -110,7 +131,7 @@ export const withHistory = (order: Order): AdminOrder => ({
 /** Seeded orders for the last 45 days plus the two sample orders, newest first. */
 export const buildOrders = (now: number): AdminOrder[] => {
   const rnd = seeded(20261116)
-  const pick = <T,>(list: readonly T[]) => list[Math.floor(rnd() * list.length)]
+  const pick = <T>(list: readonly T[]) => list[Math.floor(rnd() * list.length)]
   const sellable = products.filter(p => p.variants.some(v => v.stock > 0))
   const orders: AdminOrder[] = []
 
@@ -146,16 +167,12 @@ export const buildOrders = (now: number): AdminOrder[] => {
     else if (age < 6.5) status = 'Dispatched'
     else status = roll < 0.1 ? 'Cancelled' : 'Delivered'
 
-    let paymentStatus: PaymentStatus = 'Pending Collection'
-    if (status === 'Delivered') {
-      if (age > 14) paymentStatus = 'Settled to Business'
-      else if (age > 8 || rnd() < 0.5) paymentStatus = 'Collected by Courier'
-    }
+    // New orders wait for the owner to check the Easypaisa payment
+    const paymentStatus: PaymentStatus = status === 'Pending Confirmation' ? 'Pending Verification' : 'Paid'
 
     const courier = pick(couriers.slice(0, 4))
     const shipped = status === 'Dispatched' || status === 'Delivered'
-    const cancelReason =
-      status === 'Cancelled' ? 'Customer did not answer the confirmation calls.' : undefined
+    const cancelReason = status === 'Cancelled' ? 'Customer did not answer the confirmation calls.' : undefined
 
     const order: Order = {
       number: `CND-${978 + k}`,
@@ -168,8 +185,9 @@ export const buildOrders = (now: number): AdminOrder[] => {
       couponDiscount,
       shipping,
       total: subtotal - couponDiscount + shipping,
-      paymentMethod: 'Cash on Delivery',
+      paymentMethod: 'Easypaisa',
       paymentStatus,
+      payment: { reference: String(41000000000 + k * 7919), submittedAt: iso(placed) },
       shipment: shipped
         ? {
             courier: courier.name,
@@ -218,17 +236,15 @@ export const buildCustomers = (orders: AdminOrder[]): AdminCustomer[] => {
     c.area = o.customer.area
     c.address = o.customer.address
   })
-  return [...byPhone.values()].sort(
-    (a, b) => new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime(),
-  )
+  return [...byPhone.values()].sort((a, b) => new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime())
 }
 
 /**
  * Money definitions used everywhere in the dashboard:
  * - Gross order value: every order that is not cancelled.
  * - Delivered sales: delivered orders only.
- * - COD collected: delivered orders the courier has collected cash for.
- * - Awaiting settlement: collected by the courier, not yet paid to the business.
+ * - Received: Easypaisa payments approved, plus older cash orders the courier collected.
+ * - To check: Easypaisa payments waiting for the owner to approve them.
  */
 export const summarise = (orders: AdminOrder[]) => {
   const live = orders.filter(o => o.status !== 'Cancelled')
@@ -239,8 +255,14 @@ export const summarise = (orders: AdminOrder[]) => {
     count: orders.length,
     gross,
     deliveredSales: sum(delivered),
-    codCollected: sum(delivered.filter(o => o.paymentStatus !== 'Pending Collection')),
-    awaitingSettlement: sum(delivered.filter(o => o.paymentStatus === 'Collected by Courier')),
+    received: sum(
+      live.filter(o =>
+        o.paymentMethod === 'Easypaisa'
+          ? o.paymentStatus === 'Paid'
+          : o.status === 'Delivered' && o.paymentStatus !== 'Pending Collection',
+      ),
+    ),
+    toCheck: sum(live.filter(o => o.paymentStatus === 'Pending Verification')),
     average: live.length ? gross / live.length : 0,
     byStatus: [...orderFlow, 'Cancelled' as OrderStatus].map(status => ({
       status,

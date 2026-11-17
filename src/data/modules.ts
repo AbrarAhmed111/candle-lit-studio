@@ -1,7 +1,7 @@
 // Dashboard areas a manager can be given. Administrators always have all of them.
 export const modules = [
   'Orders',
-  'COD payments',
+  'Payments',
   'Customers',
   'Products',
   'Categories',

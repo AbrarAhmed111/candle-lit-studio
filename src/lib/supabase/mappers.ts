@@ -1,11 +1,22 @@
 // Database rows (snake_case) to the app's types (camelCase), and back.
-import type { AdminCoupon, AdminProduct, AdminReview, Campaign, MessageTemplate, NewsletterDraft, Settings, Subscriber, TeamMember } from '@/components/admin/AdminData'
+import type {
+  AdminCoupon,
+  AdminProduct,
+  AdminReview,
+  Campaign,
+  CustomerNote,
+  MessageTemplate,
+  NewsletterDraft,
+  Settings,
+  ShippingRate,
+  Subscriber,
+  TeamMember,
+} from '@/components/admin/AdminData'
 import type { Category, Product, Review, Variant } from '@/types'
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type Row = Record<string, any>
 
-const opt = <T,>(v: T | null | undefined) => (v === null ? undefined : v)
+const opt = <T>(v: T | null | undefined) => (v === null ? undefined : v)
 
 export const toVariant = (v: Row): Variant => ({
   id: v.id,
@@ -35,6 +46,7 @@ export const toProduct = (p: Row): AdminProduct => ({
   art: p.art,
   images: p.images ?? [],
   variants: [...(p.variants ?? [])].sort((a: Row, b: Row) => a.sort - b.sort).map(toVariant),
+  colours: Array.isArray(p.colours) && p.colours.length ? p.colours : undefined,
   discountPercent: opt(p.discount_percent),
   rating: Number(p.rating ?? 0),
   reviewCount: p.review_count ?? 0,
@@ -63,6 +75,7 @@ export const fromProduct = (p: Product & { active?: boolean }) => ({
   ingredients: p.ingredients ?? null,
   art: p.art,
   images: p.images,
+  colours: p.colours ?? [],
   discount_percent: p.discountPercent || null,
   featured: !!p.featured,
   best_seller: !!p.bestSeller,
@@ -87,8 +100,26 @@ export const toCategory = (c: Row): Category => ({
   name: c.name,
   description: c.description,
   cover: c.cover,
+  parent: opt(c.parent_slug),
+  image: opt(c.image),
+  banner: opt(c.banner),
+  seoTitle: opt(c.seo_title),
+  seoDescription: opt(c.seo_description),
+  archived: c.archived ?? false,
 })
-export const fromCategory = (c: Category, sort: number) => ({ ...c, sort })
+export const fromCategory = (c: Category, sort: number) => ({
+  slug: c.slug,
+  name: c.name,
+  description: c.description,
+  cover: c.cover,
+  parent_slug: c.parent || null,
+  image: c.image || null,
+  banner: c.banner || null,
+  seo_title: c.seoTitle || null,
+  seo_description: c.seoDescription || null,
+  archived: !!c.archived,
+  sort,
+})
 
 export const toReview = (r: Row): AdminReview => ({
   id: r.id,
@@ -101,6 +132,8 @@ export const toReview = (r: Row): AdminReview => ({
   date: String(r.date),
   verified: r.verified,
   status: r.status,
+  images: r.images ?? [],
+  reports: r.reports ?? 0,
 })
 export const fromReview = (r: Review & { status?: string }) => ({
   id: r.id,
@@ -182,6 +215,39 @@ export const toSettings = (s: Row, couriers: Row[]): Settings => ({
   couriers: [...couriers]
     .sort((a, b) => a.sort - b.sort)
     .map(c => ({ name: c.name, trackingUrl: c.tracking_url, active: c.active })),
+  lowStockThreshold: s.low_stock_threshold ?? 5,
+  reviewRequestDays: s.review_request_days ?? 3,
+  abandonedCartHours: s.abandoned_cart_hours ?? 24,
+  invoicePrefix: s.invoice_prefix ?? 'INV-',
+  easypaisaName: s.easypaisa_name ?? '',
+  easypaisaNumber: s.easypaisa_number ?? '',
+  whatsappEnabled: s.whatsapp_enabled ?? false,
+})
+
+export const toShippingRate = (r: Row): ShippingRate => ({
+  id: r.id,
+  city: r.city,
+  area: r.area ?? '',
+  fee: r.fee,
+  freeOver: opt(r.free_over),
+  active: r.active,
+})
+export const fromShippingRate = (r: ShippingRate) => ({
+  // New rules made in the browser have short ids: let the database pick a uuid
+  ...(/^[0-9a-f-]{36}$/i.test(r.id) ? { id: r.id } : {}),
+  city: r.city.trim(),
+  area: r.area.trim(),
+  fee: r.fee,
+  free_over: r.freeOver ?? null,
+  active: r.active,
+})
+
+export const toCustomerNote = (n: Row): CustomerNote => ({ phone: n.phone, note: n.note, status: n.status })
+export const fromCustomerNote = (n: CustomerNote) => ({
+  phone: n.phone,
+  note: n.note,
+  status: n.status,
+  updated_at: new Date().toISOString(),
 })
 
 export const toTemplate = (t: Row): MessageTemplate => ({
@@ -193,6 +259,8 @@ export const toTemplate = (t: Row): MessageTemplate => ({
   subject: opt(t.subject),
   body: t.body,
   active: t.active,
+  waTemplate: opt(t.wa_template),
+  waLanguage: t.wa_language ?? 'en',
 })
 export const fromTemplate = (t: MessageTemplate) => ({
   id: t.id,
@@ -203,6 +271,8 @@ export const fromTemplate = (t: MessageTemplate) => ({
   subject: t.subject ?? null,
   body: t.body,
   active: t.active,
+  wa_template: t.waTemplate || null,
+  wa_language: t.waLanguage || 'en',
 })
 
 export const toSubscriber = (s: Row): Subscriber => ({
@@ -227,6 +297,7 @@ export const toDraft = (d: Row): NewsletterDraft => ({
   segment: d.segment,
   savedAt: d.saved_at,
   sentAt: opt(d.sent_at),
+  scheduledFor: opt(d.scheduled_for),
   sentCount: d.sent_count ?? 0,
 })
 export const fromDraft = (d: NewsletterDraft) => ({
@@ -235,6 +306,7 @@ export const fromDraft = (d: NewsletterDraft) => ({
   body: d.body,
   segment: d.segment,
   saved_at: d.savedAt,
+  scheduled_for: d.scheduledFor ?? null,
 })
 
 export const toTeamMember = (t: Row): TeamMember => ({
@@ -244,6 +316,7 @@ export const toTeamMember = (t: Row): TeamMember => ({
   role: t.role,
   modules: t.modules ?? [],
   active: t.active,
+  joined: Boolean(t.user_id),
 })
 export const fromTeamMember = (t: TeamMember) => ({
   id: t.id,

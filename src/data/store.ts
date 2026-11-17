@@ -4,7 +4,7 @@ import type { Coupon, Order } from '@/types'
 
 export const store = {
   name: 'Candle Lit Studio',
-  announcement: 'Cash on delivery across Pakistan. Free delivery on orders over Rs. 5,000.',
+  announcement: 'Pay easily with Easypaisa. Delivery across Pakistan, free on orders over Rs. 5,000.',
   email: 'hello@candlelitstudio.pk',
   phone: '+92 300 1234567',
   whatsapp: '923001234567',
@@ -14,12 +14,14 @@ export const store = {
   shippingFee: 250,
   freeShippingOver: 5000,
   deliveryEstimate: '2 to 4 working days',
+  /** Account customers outside Quetta pay into. Set in Settings. */
+  easypaisaName: '',
+  easypaisaNumber: '',
 }
 
 // Homepage hero slides. Placeholder photos from Unsplash: replace with the
 // brand's own photography. These become admin-managed banners later.
-const unsplash = (id: string) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=2000&q=75`
+const unsplash = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=2000&q=75`
 
 export const heroSlides = [
   {
@@ -102,6 +104,11 @@ export const coupons: Coupon[] = [
   },
 ]
 
+/** Delivery fees by city or area. Empty means one fee everywhere. */
+export const shippingRates: { city: string; area: string; fee: number; freeOver?: number }[] = [
+  { city: 'Quetta', area: '', fee: 500 },
+]
+
 export const cities = [
   'Lahore',
   'Karachi',
@@ -141,8 +148,9 @@ export const sampleOrders: Order[] = [
     couponDiscount: 0,
     shipping: 250,
     total: 3503,
-    paymentMethod: 'Cash on Delivery',
-    paymentStatus: 'Pending Collection',
+    paymentMethod: 'Easypaisa',
+    paymentStatus: 'Paid',
+    payment: { reference: '41234567890' },
     shipment: {
       courier: 'TCS',
       trackingId: '779812345601',
@@ -161,22 +169,21 @@ export const sampleOrders: Order[] = [
       area: 'Clifton Block 4',
       address: 'Flat 3B, Sea View Apartments',
     },
-    lines: [
-      { productId: 'p04', name: 'Oud Majlis', variant: '300 g', qty: 2, unitPrice: 3450, originalPrice: 3450 },
-    ],
+    lines: [{ productId: 'p04', name: 'Oud Majlis', variant: '300 g', qty: 2, unitPrice: 3450, originalPrice: 3450 }],
     subtotal: 6900,
     couponDiscount: 0,
     shipping: 0,
     total: 6900,
-    paymentMethod: 'Cash on Delivery',
-    paymentStatus: 'Pending Collection',
+    paymentMethod: 'Easypaisa',
+    paymentStatus: 'Pending Verification',
+    payment: { reference: '41234567999' },
   },
 ]
 
 export const faqs = [
   {
     q: 'How do I pay?',
-    a: 'You pay in cash when the courier hands you the parcel. There is nothing to pay online.',
+    a: 'Every order is paid by Easypaisa. At checkout we show our Easypaisa number and the exact amount, delivery included. Send it from your Easypaisa app or any bank app, then add the transaction ID and a screenshot. We check the payment and confirm your order, usually within a few hours.',
   },
   {
     q: 'How long does delivery take?',
@@ -184,7 +191,7 @@ export const faqs = [
   },
   {
     q: 'How much is delivery?',
-    a: 'Delivery is Rs. 250 anywhere in Pakistan, and free on orders over Rs. 5,000.',
+    a: 'Delivery is Rs. 500 within Quetta and Rs. 250 to other cities in Pakistan. It is free on orders over Rs. 5,000. Checkout shows the exact fee for your city.',
   },
   {
     q: 'How do I track my order?',
@@ -245,7 +252,7 @@ export const policies: Record<
       {
         heading: 'Delivery charges',
         body: [
-          'Delivery is Rs. 250 per order anywhere in Pakistan.',
+          'Delivery is Rs. 500 per order within Quetta and Rs. 250 to every other city in Pakistan.',
           'Orders over Rs. 5,000 are delivered free.',
         ],
       },
@@ -296,22 +303,18 @@ export const policies: Record<
     sections: [
       {
         heading: 'What we collect',
-        body: [
-          'Your name, phone number and delivery address, and your email address if you choose to give it.',
-        ],
+        body: ['Your name, phone number and delivery address, and your email address if you choose to give it.'],
       },
       {
         heading: 'How we use it',
         body: [
           'To confirm, deliver and support your order.',
-          'We send marketing emails and WhatsApp messages only if you opt in, and you can unsubscribe at any time.',
+          'We send marketing emails only if you opt in, and you can unsubscribe at any time.',
         ],
       },
       {
         heading: 'Who we share it with',
-        body: [
-          'Only the courier company delivering your parcel. We never sell customer information.',
-        ],
+        body: ['Only the courier company delivering your parcel. We never sell customer information.'],
       },
     ],
   },
@@ -334,7 +337,10 @@ export const policies: Record<
       },
       {
         heading: 'Payment',
-        body: ['Payment is by cash on delivery. Please keep the exact amount ready for the rider.'],
+        body: [
+          'Every order is paid by Easypaisa before it is sent. At checkout you see our Easypaisa number and the exact amount, delivery included.',
+          'Add the transaction ID and a screenshot when you place your order. We check each payment by hand and confirm your order once it reaches us. If something does not match, we email you and you can send the correct details from your order page.',
+        ],
       },
     ],
   },

@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from './config'
+import { sessionUser } from './session'
 
 const AUTH_PAGES = ['/signin', '/signup']
 const PROTECTED_PATHS = ['/account']
@@ -27,6 +28,10 @@ export async function updateSession(request: NextRequest) {
   const isProtected = PROTECTED_PATHS.some(p => path.startsWith(p))
   const isAdmin = ADMIN_PATHS.some(p => path.startsWith(p))
 
+  // Public pages (shop, products, checkout...) are served straight from the cache.
+  // The browser keeps the session fresh there, and server actions refresh it when needed.
+  if (!isAuthPage && !isProtected && !isAdmin && !path.startsWith('/auth')) return NextResponse.next({ request })
+
   let response = NextResponse.next({ request })
 
   // Refreshes the session cookie on every request so it never expires mid-visit
@@ -43,9 +48,8 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Verified locally from the login token: no trip to the Auth server on most requests
+  const user = await sessionUser(supabase)
 
   const redirect = (url: URL) => {
     const next = NextResponse.redirect(url)
@@ -62,15 +66,8 @@ export async function updateSession(request: NextRequest) {
     return redirect(signin)
   }
 
-  // The dashboard is for the team listed in Settings > Team
-  if (user && isAdmin) {
-    const { data: staff } = await supabase.rpc('is_staff')
-    if (!staff) {
-      const home = new URL('/', request.url)
-      home.searchParams.set('notice', 'not-staff')
-      return redirect(home)
-    }
-  }
+  // Whether a signed-in person is on the team is checked by the dashboard layout,
+  // which runs next to the database. Row level security guards the data either way.
 
   return response
 }

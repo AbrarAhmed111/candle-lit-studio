@@ -1,6 +1,7 @@
 import { categories as seedCategories, products as seedProducts, reviews as seedReviews } from './products'
 import { campaign as seedCampaign, coupons as seedCoupons, couriers as seedCouriers, store } from './store'
 import { modules } from './modules'
+import { currentContent } from './content'
 import type { MessageTemplate, Shop } from '@/components/admin/AdminData'
 
 // Demo back-office data: what the dashboard shows before Supabase is
@@ -16,7 +17,7 @@ const seedTemplates: MessageTemplate[] = [
     name: 'Order received',
     trigger: 'When a customer places an order',
     subject: 'We have your order {{order_number}}',
-    body: 'Assalam o alaikum {{customer_name}},\n\nThank you for ordering from {{store_name}}. We will call or WhatsApp you shortly to confirm order {{order_number}}.\n\nTotal to pay on delivery: {{order_total}}.',
+    body: 'Assalam o alaikum {{customer_name}},\n\nThank you for ordering from {{store_name}}. We will call or WhatsApp you shortly to confirm order {{order_number}}.\n\n{{payment_note}}',
     active: true,
   },
   {
@@ -26,18 +27,18 @@ const seedTemplates: MessageTemplate[] = [
     name: 'Order dispatched',
     trigger: 'When you dispatch an order',
     subject: 'Your order {{order_number}} is on its way',
-    body: 'Assalam o alaikum {{customer_name}},\n\nYour candles left our studio today with {{courier}}.\n\nTracking ID: {{tracking_id}}\nTrack it here: {{tracking_url}}\n\nPlease keep {{order_total}} ready in cash for the rider.',
+    body: 'Assalam o alaikum {{customer_name}},\n\nYour candles left our studio today with {{courier}}.\n\nTracking ID: {{tracking_id}}\nTrack it here: {{tracking_url}}\n\n{{payment_note}}',
     active: true,
   },
   {
     id: 'e-delivered',
     channel: 'email',
     to: 'Customer',
-    name: 'Review request',
-    trigger: 'Three days after an order is delivered',
+    name: 'Review reminder',
+    trigger: 'Days after delivery (set in Settings), as a second reminder. Off by default.',
     subject: 'How are your candles, {{customer_name}}?',
     body: 'Your order {{order_number}} has been delivered. We would love to hear what you think. A short review helps other customers choose.',
-    active: true,
+    active: false,
   },
   {
     id: 'e-cancel',
@@ -46,7 +47,7 @@ const seedTemplates: MessageTemplate[] = [
     name: 'Order cancelled',
     trigger: 'When an order is cancelled',
     subject: 'Order {{order_number}} has been cancelled',
-    body: 'Assalam o alaikum {{customer_name}},\n\nOrder {{order_number}} has been cancelled. Nothing was charged. If this was a mistake, reply to this email and we will help.',
+    body: 'Assalam o alaikum {{customer_name}},\n\nOrder {{order_number}} has been cancelled. {{cancel_payment_note}} If this was a mistake, reply to this email and we will help.',
     active: true,
   },
   {
@@ -56,7 +57,7 @@ const seedTemplates: MessageTemplate[] = [
     name: 'Order confirmed',
     trigger: 'When you confirm an order',
     subject: 'Order {{order_number}} is confirmed',
-    body: 'Assalam o alaikum {{customer_name}},\n\nThank you for confirming. We are preparing order {{order_number}} now.\n\n{{order_details}}\n\nDelivering to: {{delivery_address}}\nTotal to pay on delivery: {{order_total}}.',
+    body: 'Assalam o alaikum {{customer_name}},\n\nThank you for confirming. We are preparing order {{order_number}} now.\n\n{{order_details}}\n\nDelivering to: {{delivery_address}}\n{{payment_note}}',
     active: true,
   },
   {
@@ -83,10 +84,10 @@ const seedTemplates: MessageTemplate[] = [
     id: 'e-order-delivered',
     channel: 'email',
     to: 'Customer',
-    name: 'Order delivered',
+    name: 'Order delivered and review request',
     trigger: 'When you mark an order as delivered',
     subject: 'Order {{order_number}} has been delivered',
-    body: 'Assalam o alaikum {{customer_name}},\n\nOrder {{order_number}} has been delivered. We hope the candles make your home feel warm.\n\nThank you for shopping with {{store_name}}.',
+    body: 'Assalam o alaikum {{customer_name}},\n\nOrder {{order_number}} has been delivered. We hope the candles make your home feel warm.\n\nHow are your candles? A short review helps other customers choose, and it means a lot to us:\n\n{{review_links}}\n\nThank you for shopping with {{store_name}}.',
     active: true,
   },
   {
@@ -106,7 +107,7 @@ const seedTemplates: MessageTemplate[] = [
     name: 'New order alert',
     trigger: 'When a customer places an order',
     subject: 'New order {{order_number}}, {{order_total}}',
-    body: 'New order {{order_number}} from {{customer_name}} ({{customer_phone}}).\n\n{{order_details}}\n\nDeliver to: {{delivery_address}}\nTotal (COD): {{order_total}}\n\nCall or WhatsApp the customer to confirm it.',
+    body: 'New order {{order_number}} from {{customer_name}} ({{customer_phone}}).\n\n{{order_details}}\n\nDeliver to: {{delivery_address}}\nTotal: {{order_total}}, {{payment_method}}\n\nCall or WhatsApp the customer to confirm it.',
     active: true,
   },
   {
@@ -140,12 +141,42 @@ const seedTemplates: MessageTemplate[] = [
     active: true,
   },
   {
+    id: 'e-payment-approved',
+    channel: 'email',
+    to: 'Customer',
+    name: 'Payment received',
+    trigger: 'When you approve an Easypaisa payment',
+    subject: 'Payment received for order {{order_number}}',
+    body: 'Assalam o alaikum {{customer_name}},\n\nWe have received your Easypaisa payment of {{order_total}} for order {{order_number}}. Thank you.\n\nWe are preparing your candles now and will email you when they are on their way.',
+    active: true,
+  },
+  {
+    id: 'e-payment-rejected',
+    channel: 'email',
+    to: 'Customer',
+    name: 'Payment not confirmed',
+    trigger: 'When you reject an Easypaisa payment',
+    subject: 'Please check your payment for order {{order_number}}',
+    body: 'Assalam o alaikum {{customer_name}},\n\nWe could not confirm your Easypaisa payment for order {{order_number}}.\n\nReason: {{message}}\n\nPress the button below, enter your mobile number and send the correct transaction ID and screenshot. If you have not paid yet, send {{order_total}} to our Easypaisa account first. Your order is on hold until then.\n\nQuestions? Reply to this email or WhatsApp us.',
+    active: true,
+  },
+  {
+    id: 'e-owner-payment',
+    channel: 'email',
+    to: 'Owner',
+    name: 'Payment to check',
+    trigger: 'When a customer sends new Easypaisa payment details',
+    subject: 'Easypaisa payment to check: {{order_number}}',
+    body: '{{customer_name}} ({{customer_phone}}) sent new Easypaisa payment details for order {{order_number}}.\n\nTransaction ID: {{transaction_id}}\nAmount due: {{order_total}}\n\nOpen the order, compare it with your Easypaisa account, then approve or reject the payment.',
+    active: true,
+  },
+  {
     id: 'w-owner',
     channel: 'whatsapp',
     to: 'Owner',
     name: 'New order alert',
     trigger: 'When a customer places an order',
-    body: 'New order {{order_number}} received. Customer: {{customer_name}}. Total: {{order_total}}. Payment: COD.',
+    body: 'New order {{order_number}} received. Customer: {{customer_name}}. Total: {{order_total}}. Payment: {{payment_method}}.',
     active: true,
   },
   {
@@ -165,7 +196,8 @@ export const seedShop = (): Shop => ({
       id: 'm1',
       name: 'Rabia Anwar',
       contact: '03336664400',
-      message: 'Do you make custom scents for weddings? We need around 80 small candles as favours for a mehndi in January.',
+      message:
+        'Do you make custom scents for weddings? We need around 80 small candles as favours for a mehndi in January.',
       createdAt: daysAgo(0.4),
       handled: false,
     },
@@ -173,7 +205,8 @@ export const seedShop = (): Shop => ({
       id: 'm2',
       name: 'Kiran Abbasi',
       contact: 'kiran.a@example.com',
-      message: 'My Monsoon Earth tin arrived with a dent in the lid. The candle is fine but it was a gift. Can you help?',
+      message:
+        'My Monsoon Earth tin arrived with a dent in the lid. The candle is fine but it was a gift. Can you help?',
       createdAt: daysAgo(1.6),
       handled: false,
     },
@@ -213,11 +246,23 @@ export const seedShop = (): Shop => ({
   subscribers: [
     { email: 'ayesha.k@example.com', name: 'Ayesha Khan', source: 'Checkout', joinedAt: daysAgo(40), subscribed: true },
     { email: 'hira.s@example.com', name: 'Hira Siddiqui', source: 'Popup', joinedAt: daysAgo(31), subscribed: true },
-    { email: 'bilal.raza@example.com', name: 'Bilal Raza', source: 'Checkout', joinedAt: daysAgo(26), subscribed: true },
+    {
+      email: 'bilal.raza@example.com',
+      name: 'Bilal Raza',
+      source: 'Checkout',
+      joinedAt: daysAgo(26),
+      subscribed: true,
+    },
     { email: 'zoya.m@example.com', source: 'Footer', joinedAt: daysAgo(19), subscribed: true },
     { email: 'omar.j@example.com', name: 'Omar Javed', source: 'Checkout', joinedAt: daysAgo(15), subscribed: false },
     { email: 'mehwish.t@example.com', source: 'Popup', joinedAt: daysAgo(9), subscribed: true },
-    { email: 'mariam.b@example.com', name: 'Mariam Baloch', source: 'Checkout', joinedAt: daysAgo(6), subscribed: true },
+    {
+      email: 'mariam.b@example.com',
+      name: 'Mariam Baloch',
+      source: 'Checkout',
+      joinedAt: daysAgo(6),
+      subscribed: true,
+    },
     { email: 'faraz.h@example.com', source: 'Popup', joinedAt: daysAgo(2), subscribed: true },
   ],
   drafts: [],
@@ -286,6 +331,20 @@ export const seedShop = (): Shop => ({
     freeShippingOver: store.freeShippingOver,
     deliveryEstimate: store.deliveryEstimate,
     couriers: seedCouriers.map(c => ({ ...c, active: true })),
+    lowStockThreshold: 5,
+    reviewRequestDays: 3,
+    abandonedCartHours: 24,
+    invoicePrefix: 'INV-',
+    easypaisaName: store.easypaisaName,
+    easypaisaNumber: store.easypaisaNumber,
+    whatsappEnabled: false,
   },
+  shippingRates: [
+    { id: 'sr-quetta', city: 'Quetta', area: '', fee: 500, active: true },
+    { id: 'sr-karachi', city: 'Karachi', area: '', fee: 300, freeOver: 6000, active: true },
+  ],
+  customerNotes: [
+    { phone: '03451239876', note: 'Prefers a call after 6 pm. Ordered gifts for Eid last year.', status: 'VIP' },
+  ],
+  content: currentContent(),
 })
-
