@@ -9,20 +9,19 @@ import { orderDetails, renderEmail, type EmailValues } from './render'
  * email is written to email_log and the order or action carries on.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-export const LOW_STOCK = 5
-
 const ready = () => isSupabaseConfigured && emailConfigured()
 
-type Db = NonNullable<ReturnType<typeof createServiceClient>>
+export type Db = NonNullable<ReturnType<typeof createServiceClient>>
 
-const loadStore = async (db: Db) => {
+export const loadStore = async (db: Db) => {
   const { data } = await db.from('store_settings').select('*').eq('id', 1).single()
   return {
     name: (data?.name as string) ?? 'Candle Lit Studio',
     email: (data?.email as string) ?? '',
     footer: `${data?.name ?? 'Candle Lit Studio'}, ${data?.address ?? ''}. ${data?.phone ?? ''}`.trim(),
+    lowStock: (data?.low_stock_threshold as number) ?? 5,
+    reviewDays: (data?.review_request_days as number) ?? 3,
+    cartHours: (data?.abandoned_cart_hours as number) ?? 24,
   }
 }
 
@@ -39,13 +38,15 @@ type SendOptions = {
   dedupeKey?: string
   unsubscribeUrl?: string
   button?: { label: string; href: string }
-  /** Use this wording instead of the saved template (test sends, newsletters) */
+  /** Use this wording instead of the saved template (newsletters) */
   override?: { subject: string; body: string }
 }
 
 /** Renders a template, sends it and records the result */
 export async function sendTemplate(db: Db, store: Awaited<ReturnType<typeof loadStore>>, options: SendOptions) {
   const { templateId, to, values, orderNumber, dedupeKey } = options
+  // Without SMTP settings emails are skipped quietly, so the log only shows real attempts
+  if (!emailConfigured()) return
   const template = options.override ?? (await loadTemplate(db, templateId))
   if (!template || ('active' in template && !template.active) || !to) return
 
@@ -88,7 +89,7 @@ export async function sendTemplate(db: Db, store: Awaited<ReturnType<typeof load
 
 // ---------- Orders ----------
 
-const loadOrder = async (db: Db, number: string) => {
+export const loadOrder = async (db: Db, number: string) => {
   const [{ data: order }, { data: lines }, { data: shipment }] = await Promise.all([
     db.from('orders').select('*').eq('number', number).single(),
     db.from('order_lines').select('*').eq('order_number', number).order('id'),
@@ -97,13 +98,43 @@ const loadOrder = async (db: Db, number: string) => {
   return order ? { order, lines: lines ?? [], shipment } : null
 }
 
-const orderValues = (o: any, lines: any[], shipment: any): EmailValues => {
+/** How the order is paid, in words for {{payment_note}} and {{cancel_payment_note}} */
+const paymentWords = (o: any) => {
+  const total = formatPKR(o.total)
+  if (o.payment_method !== 'Easypaisa')
+    return { note: `Total to pay on delivery: ${total}.`, cancel: 'Nothing was charged.', method: 'cash on delivery' }
+  const method = `Easypaisa${o.payment_reference ? `, transaction ID ${o.payment_reference}` : ''}`
+  const cancel =
+    o.payment_status === 'Paid'
+      ? 'We will contact you to return your Easypaisa payment.'
+      : 'If your Easypaisa payment reached us, we will contact you to return it.'
+  const note =
+    o.payment_status === 'Paid'
+      ? `Total ${total}, paid by Easypaisa. Thank you.`
+      : o.payment_status === 'Payment Rejected'
+        ? `Total ${total}. We could not confirm your Easypaisa payment yet.`
+        : `Total ${total}, paid by Easypaisa. We are checking your payment and will confirm it shortly.`
+  return { note, cancel, method }
+}
+
+export const orderValues = (o: any, lines: any[], shipment: any): EmailValues => {
   const details = orderDetails(
-    lines.map(l => ({ name: l.name, variant: l.variant_label, qty: l.qty, unitPrice: l.unit_price })),
+    lines.map(l => ({
+      name: l.name,
+      variant: l.colour ? `${l.variant_label}, ${l.colour}` : l.variant_label,
+      qty: l.qty,
+      unitPrice: l.unit_price,
+    })),
     { subtotal: o.subtotal, discount: o.coupon_discount, shipping: o.shipping, total: o.total },
     formatPKR,
+    o.payment_method === 'Easypaisa' ? 'Total' : 'Pay on delivery',
   )
+  const payment = paymentWords(o)
   return {
+    payment_method: payment.method,
+    payment_note: payment.note,
+    cancel_payment_note: payment.cancel,
+    transaction_id: o.payment_reference ?? '',
     customer_name: String(o.customer_name).split(' ')[0],
     customer_phone: o.customer_phone,
     order_number: o.number,
@@ -163,6 +194,37 @@ export async function notifyOrderPlaced(number: string) {
   }
 }
 
+/** Sends one order email again from the dashboard, even if it went out before */
+export async function resendOrderEmail(number: string, templateId: string) {
+  if (!ready())
+    return {
+      ok: false as const,
+      error: 'Email sending is not set up yet. Ask your website developer to finish the email setup.',
+    }
+  const db = createServiceClient()
+  if (!db)
+    return {
+      ok: false as const,
+      error: 'Email sending is not set up yet. Ask your website developer to finish the email setup.',
+    }
+  const [store, data] = await Promise.all([loadStore(db), loadOrder(db, number)])
+  if (!data) return { ok: false as const, error: 'Order not found.' }
+  if (!data.order.customer_email) return { ok: false as const, error: 'This customer gave no email address.' }
+  const values = orderValues(data.order, data.lines, data.shipment)
+  if (templateId === 'e-order-delivered' || templateId === 'e-delivered')
+    values.review_links = reviewText(await reviewLinks(db, data.lines))
+  const result = await sendTemplate(db, store, {
+    templateId,
+    to: data.order.customer_email,
+    values,
+    orderNumber: number,
+    button: values.tracking_url
+      ? { label: 'Track with the courier', href: values.tracking_url }
+      : { label: 'View your order', href: `${siteUrl}/track-order?order=${number}` },
+  })
+  return result ?? { ok: false as const, error: 'That email is switched off in Messages.' }
+}
+
 /** A status change made in the dashboard */
 export async function notifyOrderStatus(number: string, status: string) {
   if (!ready()) return
@@ -174,6 +236,9 @@ export async function notifyOrderStatus(number: string, status: string) {
     const [store, data] = await Promise.all([loadStore(db), loadOrder(db, number)])
     if (!data) return
     const values = orderValues(data.order, data.lines, data.shipment)
+    // The delivered email asks for a review of each candle in the order
+    const reviews = status === 'Delivered' ? await reviewLinks(db, data.lines) : []
+    if (status === 'Delivered') values.review_links = reviewText(reviews)
     const jobs: Promise<unknown>[] = []
     if (data.order.customer_email) {
       jobs.push(
@@ -187,7 +252,9 @@ export async function notifyOrderStatus(number: string, status: string) {
           button:
             status === 'Dispatched' && values.tracking_url
               ? { label: 'Track with the courier', href: values.tracking_url }
-              : { label: 'View your order', href: `${siteUrl}/track-order?order=${number}` },
+              : reviews.length
+                ? { label: 'Write a review', href: reviews[0].href }
+                : { label: 'View your order', href: `${siteUrl}/track-order?order=${number}` },
         }),
       )
     }
@@ -208,13 +275,28 @@ export async function notifyOrderStatus(number: string, status: string) {
   }
 }
 
+/** Each candle with its review link, one per line (the shop when none is found) */
+const reviewText = (reviews: { name: string; href: string }[]) =>
+  reviews.length ? reviews.map(r => `${r.name}: ${r.href}`).join('\n') : `${siteUrl}/shop`
+
+/** A link to the review form of each different candle in an order */
+async function reviewLinks(db: Db, lines: any[]) {
+  const ids = [...new Set(lines.map(l => l.product_id).filter(Boolean))] as string[]
+  if (!ids.length) return []
+  const { data } = await db.from('products').select('id, name, slug').in('id', ids)
+  return ids.flatMap(id => {
+    const p = (data ?? []).find((row: any) => row.id === id)
+    return p ? [{ name: p.name as string, href: `${siteUrl}/products/${p.slug}#reviews` }] : []
+  })
+}
+
 async function notifyLowStock(db: Db, store: Awaited<ReturnType<typeof loadStore>>, variantIds: string[]) {
   if (!variantIds.length) return
   const { data } = await db
     .from('variants')
     .select('id, label, stock, products(name)')
     .in('id', variantIds)
-    .lte('stock', LOW_STOCK)
+    .lte('stock', store.lowStock)
   const today = new Date().toISOString().slice(0, 10)
   await Promise.allSettled(
     (data ?? []).map((v: any) =>
@@ -233,7 +315,75 @@ async function notifyLowStock(db: Db, store: Awaited<ReturnType<typeof loadStore
   )
 }
 
+// ---------- Easypaisa payments ----------
+
+/** The owner approved or rejected a payment: the customer hears either way */
+export async function notifyPaymentReviewed(number: string, approved: boolean, reason?: string) {
+  if (!ready()) return
+  const db = createServiceClient()
+  if (!db) return
+  try {
+    const [store, data] = await Promise.all([loadStore(db), loadOrder(db, number)])
+    if (!data?.order.customer_email) return
+    const templateId = approved ? 'e-payment-approved' : 'e-payment-rejected'
+    await sendTemplate(db, store, {
+      templateId,
+      to: data.order.customer_email,
+      values: { ...orderValues(data.order, data.lines, data.shipment), message: reason ?? '' },
+      orderNumber: number,
+      // A second rejection (after new details) must reach the customer too
+      dedupeKey: approved ? `${templateId}:${number}` : undefined,
+      button: approved
+        ? { label: 'View your order', href: `${siteUrl}/track-order?order=${number}` }
+        : { label: 'Send payment details', href: `${siteUrl}/track-order?order=${number}` },
+    })
+  } catch (error) {
+    console.error('[email] payment reviewed', number, error)
+  }
+}
+
+/** A customer sent new payment details after a rejection */
+export async function notifyPaymentResubmitted(number: string) {
+  if (!ready()) return
+  const db = createServiceClient()
+  if (!db) return
+  try {
+    const [store, data] = await Promise.all([loadStore(db), loadOrder(db, number)])
+    if (!data) return
+    await sendTemplate(db, store, {
+      templateId: 'e-owner-payment',
+      to: store.email,
+      values: orderValues(data.order, data.lines, data.shipment),
+      orderNumber: number,
+      button: { label: 'Check the payment', href: `${siteUrl}/admin/orders/${number}` },
+    })
+  } catch (error) {
+    console.error('[email] payment resubmitted', number, error)
+  }
+}
+
 // ---------- Other events ----------
+
+/** Tells the owner a customer asked to cancel */
+export async function notifyCancelRequest(number: string, reason: string) {
+  if (!ready()) return
+  const db = createServiceClient()
+  if (!db) return
+  try {
+    const [store, data] = await Promise.all([loadStore(db), loadOrder(db, number)])
+    if (!data) return
+    await sendTemplate(db, store, {
+      templateId: 'e-cancel-request',
+      to: store.email,
+      values: { ...orderValues(data.order, data.lines, data.shipment), message: reason || 'No reason given' },
+      orderNumber: number,
+      dedupeKey: `e-cancel-request:${number}`,
+      button: { label: 'Open the order', href: `${siteUrl}/admin/orders/${number}` },
+    })
+  } catch (error) {
+    console.error('[email] cancel request', error)
+  }
+}
 
 export async function notifyInquiry(message: { name: string; contact: string; message: string }) {
   if (!ready()) return
@@ -258,7 +408,11 @@ export async function notifyNewSubscriber(email: string) {
   if (!db) return
   try {
     const store = await loadStore(db)
-    const { data } = await db.from('subscribers').select('unsubscribe_token').eq('email', email.toLowerCase()).maybeSingle()
+    const { data } = await db
+      .from('subscribers')
+      .select('unsubscribe_token')
+      .eq('email', email.toLowerCase())
+      .maybeSingle()
     await sendTemplate(db, store, {
       templateId: 'e-welcome',
       to: email,
@@ -270,41 +424,4 @@ export async function notifyNewSubscriber(email: string) {
   } catch (error) {
     console.error('[email] welcome', error)
   }
-}
-
-/** Review requests for orders delivered at least three days ago. Run once a day. */
-export async function sendReviewRequests() {
-  if (!ready()) return { sent: 0, skipped: 'Email or Supabase is not configured' }
-  const db = createServiceClient()
-  if (!db) return { sent: 0, skipped: 'SUPABASE_SERVICE_ROLE_KEY is not set' }
-
-  const store = await loadStore(db)
-  const since = new Date(Date.now() - 30 * 86_400_000).toISOString()
-  const until = new Date(Date.now() - 3 * 86_400_000).toISOString()
-  // When each order was marked delivered comes from its history
-  const { data: delivered } = await db
-    .from('order_events')
-    .select('order_number, at')
-    .ilike('text', 'Marked as delivered%')
-    .gte('at', since)
-    .lte('at', until)
-  let sent = 0
-  for (const number of [...new Set((delivered ?? []).map(e => e.order_number as string))]) {
-    const data = await loadOrder(db, number)
-    if (!data?.order.customer_email || data.order.status !== 'Delivered') continue
-    const first = data.lines.find(l => l.product_id)
-    const { data: product } = first
-      ? await db.from('products').select('slug').eq('id', first.product_id).maybeSingle()
-      : { data: null }
-    const result = await sendTemplate(db, store, {
-      templateId: 'e-delivered',
-      to: data.order.customer_email,
-      values: orderValues(data.order, data.lines, data.shipment),
-      orderNumber: number,
-      dedupeKey: `e-delivered:${number}`,
-      button: { label: 'Write a review', href: product ? `${siteUrl}/products/${product.slug}#reviews` : `${siteUrl}/shop` },
-    })
-    if (result?.ok) sent++
-  }
-  return { sent }
 }

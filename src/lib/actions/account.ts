@@ -5,12 +5,11 @@ import { createClient } from '@/lib/supabase/server'
 import type { Account, Address } from '@/components/account/useAccount'
 import type { Order } from '@/types'
 import { fail, friendly, ok, NOT_CONNECTED, type ActionResult } from './result'
+import { sessionUser } from '@/lib/supabase/session'
 
 const session = async () => {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await sessionUser(supabase)
   return { supabase, user }
 }
 
@@ -32,19 +31,17 @@ export async function getAccount(): Promise<ActionResult<Account | null>> {
       email: user.email ?? p?.email ?? '',
       phone: p?.phone ?? '',
     },
-    addresses: (addresses.data ?? []).map(
-      (a): Address => ({
-        id: a.id,
-        label: a.label,
-        name: a.name,
-        phone: a.phone,
-        address: a.address,
-        area: a.area,
-        city: a.city,
-        landmark: a.landmark ?? undefined,
-        isDefault: a.is_default,
-      }),
-    ),
+    addresses: (addresses.data ?? []).map((a): Address => ({
+      id: a.id,
+      label: a.label,
+      name: a.name,
+      phone: a.phone,
+      address: a.address,
+      area: a.area,
+      city: a.city,
+      landmark: a.landmark ?? undefined,
+      isDefault: a.is_default,
+    })),
     prefs: { newsletter: p?.newsletter ?? false, whatsapp: p?.whatsapp ?? true },
   })
 }
@@ -95,7 +92,8 @@ export async function saveAccount(account: Account): Promise<ActionResult> {
   }))
   const withId = rows.filter(r => 'id' in r)
   const fresh = rows.filter(r => !('id' in r))
-  const nonDefaultFirst = <T extends { is_default: boolean }>(list: T[]) => [...list].sort((a, b) => Number(a.is_default) - Number(b.is_default))
+  const nonDefaultFirst = <T extends { is_default: boolean }>(list: T[]) =>
+    [...list].sort((a, b) => Number(a.is_default) - Number(b.is_default))
   if (withId.length) {
     const { error } = await supabase.from('addresses').upsert(nonDefaultFirst(withId))
     if (error) return fail(friendly(error.message))
@@ -122,11 +120,16 @@ export async function syncWishlist(localIds: string[]): Promise<ActionResult<str
   const { supabase, user } = await session()
   if (!user) return ok(null)
   if (localIds.length) {
-    await supabase
-      .from('wishlists')
-      .upsert(localIds.map(product_id => ({ user_id: user.id, product_id })), { ignoreDuplicates: true })
+    await supabase.from('wishlists').upsert(
+      localIds.map(product_id => ({ user_id: user.id, product_id })),
+      { ignoreDuplicates: true },
+    )
   }
-  const { data, error } = await supabase.from('wishlists').select('product_id').eq('user_id', user.id).order('created_at')
+  const { data, error } = await supabase
+    .from('wishlists')
+    .select('product_id')
+    .eq('user_id', user.id)
+    .order('created_at')
   if (error) return fail(friendly(error.message))
   return ok(data.map(r => r.product_id))
 }

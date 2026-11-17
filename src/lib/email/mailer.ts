@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from 'nodemailer'
+import { LOGO_CID, logoPng } from './logo'
 
 // SMTP settings come from the environment. Any provider works: Gmail (with
 // an app password), Zoho, Brevo, Hostinger, Amazon SES and others.
@@ -34,12 +35,20 @@ const transport = () => {
 export type Mail = { to: string; subject: string; html: string; text: string; from: string; replyTo?: string }
 
 /** Sends one email, trying twice. Resolves with the error text instead of throwing. */
-export async function deliver(mail: Mail): Promise<{ ok: true; attempts: number } | { ok: false; error: string; attempts: number }> {
+export async function deliver(
+  mail: Mail,
+): Promise<{ ok: true; attempts: number } | { ok: false; error: string; attempts: number }> {
   if (!emailConfigured()) return { ok: false, error: 'SMTP is not configured', attempts: 0 }
   let last = ''
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      await transport().sendMail(mail)
+      await transport().sendMail({
+        ...mail,
+        // The logo travels inside the email instead of being loaded from the site
+        attachments: [
+          { filename: 'logo.png', content: logoPng, encoding: 'base64', cid: LOGO_CID, contentDisposition: 'inline' },
+        ],
+      })
       return { ok: true, attempts: attempt }
     } catch (error) {
       last = (error as Error).message

@@ -1,4 +1,4 @@
-import { coupons, store } from '@/data/store'
+import { coupons, shippingRates, store } from '@/data/store'
 import { getProductById } from '@/data/products'
 import type { CartItem, Coupon, Product, Variant } from '@/types'
 
@@ -11,21 +11,20 @@ export const formatPKR = (amount: number) =>
 
 /** Discounted unit price, rounded to the nearest rupee. */
 export const salePrice = (product: Product, variant: Variant) =>
-  product.discountPercent
-    ? Math.round(variant.price * (1 - product.discountPercent / 100))
-    : variant.price
+  product.discountPercent ? Math.round(variant.price * (1 - product.discountPercent / 100)) : variant.price
 
 export const fromPrice = (product: Product) => {
   const cheapest = product.variants.reduce((a, b) => (a.price <= b.price ? a : b))
   return { original: cheapest.price, sale: salePrice(product, cheapest) }
 }
 
-export const totalStock = (product: Product) =>
-  product.variants.reduce((sum, v) => sum + v.stock, 0)
+export const totalStock = (product: Product) => product.variants.reduce((sum, v) => sum + v.stock, 0)
 
 export type CartLine = {
   product: Product
   variant: Variant
+  /** Chosen colour name, for products that come in colours */
+  colour?: string
   qty: number
   unitPrice: number
   lineTotal: number
@@ -37,11 +36,15 @@ export const resolveLines = (items: CartItem[]): CartLine[] =>
     const product = getProductById(item.productId)
     const variant = product?.variants.find(v => v.id === item.variantId)
     if (!product || !variant) return []
+    // A colour the owner has since removed cannot be ordered
+    const colours = product.colours ?? []
+    if (colours.length ? !colours.some(c => c.name === item.colour) : item.colour) return []
     const unitPrice = salePrice(product, variant)
     return [
       {
         product,
         variant,
+        colour: item.colour,
         qty: item.qty,
         unitPrice,
         lineTotal: unitPrice * item.qty,
@@ -50,9 +53,7 @@ export const resolveLines = (items: CartItem[]): CartLine[] =>
     ]
   })
 
-export type CouponCheck =
-  | { ok: true; coupon: Coupon }
-  | { ok: false; message: string }
+export type CouponCheck = { ok: true; coupon: Coupon } | { ok: false; message: string }
 
 /** The part of the cart a coupon covers: everything, or only its products and categories */
 export const couponBase = (coupon: Coupon, lines: CartLine[]) => {
@@ -82,7 +83,26 @@ export const checkCoupon = (code: string, subtotal: number, lines?: CartLine[]):
   return { ok: true, coupon }
 }
 
-export const computeTotals = (items: CartItem[], couponCode?: string | null) => {
+/** Delivery fee for a place: area rule, then city rule, then the store default (same order as the database) */
+export const deliveryFor = (cartValue: number, place?: { city?: string; area?: string }) => {
+  const city = place?.city?.trim().toLowerCase()
+  const area = place?.area?.trim().toLowerCase() ?? ''
+  const rule = city
+    ? (shippingRates.find(r => r.city.toLowerCase() === city && r.area && r.area.toLowerCase() === area) ??
+      shippingRates.find(r => r.city.toLowerCase() === city && !r.area))
+    : undefined
+  const freeOver = rule?.freeOver ?? store.freeShippingOver
+  return {
+    fee: freeOver > 0 && cartValue >= freeOver ? 0 : (rule?.fee ?? store.shippingFee),
+    freeOver,
+  }
+}
+
+export const computeTotals = (
+  items: CartItem[],
+  couponCode?: string | null,
+  place?: { city?: string; area?: string },
+) => {
   const lines = resolveLines(items)
   const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0)
   const originalSubtotal = lines.reduce((s, l) => s + l.lineOriginal, 0)
@@ -106,13 +126,11 @@ export const computeTotals = (items: CartItem[], couponCode?: string | null) => 
   }
 
   // A threshold of 0 switches free delivery off
-  const qualifiesFree = store.freeShippingOver > 0 && subtotal - couponDiscount >= store.freeShippingOver
-  const shipping =
-    lines.length === 0 || qualifiesFree || coupon?.type === 'free_shipping'
-      ? 0
-      : store.shippingFee
+  const delivery = deliveryFor(subtotal - couponDiscount, place)
+  const qualifiesFree = delivery.fee === 0
+  const shipping = lines.length === 0 || qualifiesFree || coupon?.type === 'free_shipping' ? 0 : delivery.fee
   const total = subtotal - couponDiscount + shipping
-  const shippingSaved = coupon?.type === 'free_shipping' && !qualifiesFree ? store.shippingFee : 0
+  const shippingSaved = coupon?.type === 'free_shipping' && !qualifiesFree ? delivery.fee : 0
 
   return {
     lines,
@@ -125,7 +143,7 @@ export const computeTotals = (items: CartItem[], couponCode?: string | null) => 
     shipping,
     total,
     savings: productSavings + couponDiscount + shippingSaved,
-    toFreeShipping: store.freeShippingOver > 0 ? Math.max(0, store.freeShippingOver - (subtotal - couponDiscount)) : 0,
+    toFreeShipping: delivery.freeOver > 0 ? Math.max(0, delivery.freeOver - (subtotal - couponDiscount)) : 0,
     itemCount: lines.reduce((s, l) => s + l.qty, 0),
   }
 }

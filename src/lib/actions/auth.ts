@@ -1,5 +1,6 @@
 'use server'
 
+import { sessionUser } from '@/lib/supabase/session'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { isSupabaseConfigured, siteUrl } from '@/lib/supabase/config'
@@ -40,7 +41,11 @@ export async function signInWithEmail(email: string, password: string): Promise<
   return ok({ staff: !!staff })
 }
 
-export async function signUpWithEmail(name: string, email: string, password: string): Promise<ActionResult<{ confirm: boolean }>> {
+export async function signUpWithEmail(
+  name: string,
+  email: string,
+  password: string,
+): Promise<ActionResult<{ confirm: boolean }>> {
   if (!isSupabaseConfigured) return fail(NOT_CONNECTED)
   const supabase = await createClient()
   const { data, error } = await supabase.auth.signUp({
@@ -52,7 +57,9 @@ export async function signUpWithEmail(name: string, email: string, password: str
     },
   })
   if (error) {
-    return fail(/registered/i.test(error.message) ? 'An account with this email already exists. Sign in instead.' : error.message)
+    return fail(
+      /registered/i.test(error.message) ? 'An account with this email already exists. Sign in instead.' : error.message,
+    )
   }
   // With email confirmation on, there is no session until the link is opened
   return ok({ confirm: !data.session })
@@ -71,9 +78,7 @@ export type Viewer = { email: string; name: string; staff: boolean } | null
 export async function getViewer(): Promise<Viewer> {
   if (!isSupabaseConfigured) return null
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await sessionUser(supabase)
   if (!user) return null
   const { data: staff } = await supabase.rpc('is_staff')
   return {
@@ -104,6 +109,9 @@ export async function updatePassword(password: string): Promise<ActionResult> {
   } = await supabase.auth.getUser()
   if (!user) return fail('This reset link has expired. Ask for a new one.')
   const { error } = await supabase.auth.updateUser({ password })
-  if (error) return fail(/different from the old/i.test(error.message) ? 'Choose a password you have not used before.' : error.message)
+  if (error)
+    return fail(
+      /different from the old/i.test(error.message) ? 'Choose a password you have not used before.' : error.message,
+    )
   return ok(null)
 }

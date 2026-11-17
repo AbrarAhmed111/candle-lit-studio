@@ -1,5 +1,6 @@
 import { categories, products, reviews } from '@/data/products'
-import { campaign, coupons, couriers, store } from '@/data/store'
+import { campaign, coupons, couriers, shippingRates, store } from '@/data/store'
+import { applyContent, type SiteContent } from '@/data/content'
 import type { Category, Coupon, Product, Review } from '@/types'
 
 /**
@@ -23,12 +24,17 @@ export type CatalogSnapshot = {
     shippingFee: number
     freeShippingOver: number
     deliveryEstimate: string
+    easypaisaName: string
+    easypaisaNumber: string
   }
   couriers: { name: string; trackingUrl: string }[]
   campaign: { name: string; description: string; endsAt: string } | null
+  shippingRates: { city: string; area: string; fee: number; freeOver?: number }[]
+  content: Partial<SiteContent>
+  lowStock: number
 }
 
-const replace = <T,>(target: T[], next: T[]) => {
+const replace = <T>(target: T[], next: T[]) => {
   target.splice(0, target.length, ...next)
 }
 
@@ -41,6 +47,8 @@ export function hydrateCatalog(snapshot: CatalogSnapshot) {
   replace(categories, snapshot.categories)
   replace(reviews, snapshot.reviews)
   replace(couriers, snapshot.couriers)
+  replace(shippingRates, snapshot.shippingRates)
+  applyContent(snapshot.content)
   Object.assign(store, snapshot.settings)
   if (snapshot.campaign) Object.assign(campaign, snapshot.campaign)
   else Object.assign(campaign, { name: '', description: '', endsAt: '' })
@@ -50,8 +58,5 @@ export function hydrateCatalog(snapshot: CatalogSnapshot) {
 
 /** Adds a coupon the server has just validated, so cart totals can use it */
 export function registerCoupon(coupon: Coupon) {
-  replace(
-    coupons,
-    [...coupons.filter(c => c.code !== coupon.code), coupon],
-  )
+  replace(coupons, [...coupons.filter(c => c.code !== coupon.code), coupon])
 }

@@ -22,9 +22,7 @@ export const saveOrder = (order: Order) => {
 }
 
 export const nextOrderNumber = () => {
-  const taken = [...sampleOrders, ...localOrders()].map(o =>
-    Number(o.number.replace('CND-', '')),
-  )
+  const taken = [...sampleOrders, ...localOrders()].map(o => Number(o.number.replace('CND-', '')))
   return `CND-${Math.max(1031, ...taken) + 1}`
 }
 

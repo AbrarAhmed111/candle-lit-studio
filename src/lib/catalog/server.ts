@@ -10,16 +10,22 @@ export const CATALOG_TAG = 'catalog'
 const fetchCatalog = unstable_cache(
   async (): Promise<CatalogSnapshot> => {
     const db = createPublicClient()
-    const [products, categories, reviews, settings, couriers, campaigns] = await Promise.all([
+    const [products, categories, reviews, settings, couriers, campaigns, rates, content] = await Promise.all([
       // effective_discount: the product's own discount or a running campaign, whichever is larger
-      db.from('products').select('*, effective_discount, variants(*)').eq('active', true).order('created_at', { ascending: false }),
+      db
+        .from('products')
+        .select('*, effective_discount, variants(*)')
+        .eq('active', true)
+        .order('created_at', { ascending: false }),
       db.from('categories').select('*').order('sort'),
       db.from('reviews').select('*').eq('status', 'Approved').order('date', { ascending: false }),
       db.from('store_settings').select('*').eq('id', 1).single(),
       db.from('couriers').select('*').eq('active', true).order('sort'),
       db.from('campaigns').select('*').eq('active', true).order('ends_at'),
+      db.from('shipping_rates').select('*').eq('active', true),
+      db.from('site_content').select('key, value'),
     ])
-    const failed = [products, categories, reviews, settings, couriers, campaigns].find(r => r.error)
+    const failed = [products, categories, reviews, settings, couriers, campaigns, rates, content].find(r => r.error)
     if (failed?.error) throw new Error(`Catalogue could not load: ${failed.error.message}`)
 
     const today = new Date().toISOString().slice(0, 10)
@@ -32,7 +38,8 @@ const fetchCatalog = unstable_cache(
         const { active: _active, ...product } = toProduct({ ...row, discount_percent: row.effective_discount })
         return product
       }),
-      categories: (categories.data ?? []).map(toCategory),
+      // Archived categories leave the store; their products stay in other categories
+      categories: (categories.data ?? []).map(toCategory).filter(c => !c.archived),
       reviews: (reviews.data ?? []).map(row => {
         const { status: _status, ...review } = toReview(row)
         return review
@@ -49,9 +56,19 @@ const fetchCatalog = unstable_cache(
         shippingFee: s.shipping_fee,
         freeShippingOver: s.free_shipping_over,
         deliveryEstimate: s.delivery_estimate,
+        easypaisaName: s.easypaisa_name ?? '',
+        easypaisaNumber: s.easypaisa_number ?? '',
       },
       couriers: (couriers.data ?? []).map(c => ({ name: c.name, trackingUrl: c.tracking_url })),
       campaign: running ? { name: running.name, description: running.description, endsAt: running.ends_at } : null,
+      shippingRates: (rates.data ?? []).map(r => ({
+        city: r.city,
+        area: r.area,
+        fee: r.fee,
+        freeOver: r.free_over ?? undefined,
+      })),
+      content: Object.fromEntries((content.data ?? []).map(c => [c.key, c.value])),
+      lowStock: s.low_stock_threshold ?? 5,
     }
   },
   ['catalog'],

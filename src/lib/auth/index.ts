@@ -1,17 +1,12 @@
 import { redirect } from 'next/navigation'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
+import { sessionUser } from '@/lib/supabase/session'
 
 /** The signed-in user, or null (always null in demo mode) */
 export async function getCurrentUser() {
   if (!isSupabaseConfigured) return null
-  const supabase = await createClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-  if (error || !user) return null
-  return user
+  return sessionUser(await createClient())
 }
 
 export async function requireAuth(returnUrl = '/account') {
