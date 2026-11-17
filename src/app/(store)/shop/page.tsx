@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import Breadcrumbs from '@/components/store/Breadcrumbs'
 import Catalogue from '@/components/store/Catalogue'
 import { products } from '@/data/products'
+import { loadCatalog } from '@/lib/catalog/server'
 
 export const metadata: Metadata = {
   title: 'All candles',
@@ -11,7 +12,8 @@ export const metadata: Metadata = {
   alternates: { canonical: '/shop' },
 }
 
-export default function ShopPage() {
+export default async function ShopPage() {
+  await loadCatalog()
   return (
     <div className="page pt-8 lg:pt-12">
       <Breadcrumbs items={[{ label: 'All candles' }]} />

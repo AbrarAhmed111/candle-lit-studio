@@ -3,15 +3,14 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { FormEvent, useState } from 'react'
-import { ArrowLeft, Copy, ExternalLink, Truck } from 'lucide-react'
+import { ArrowLeft, Copy, ExternalLink, Printer, Truck } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { useAdmin } from '@/components/admin/AdminData'
-import { card, dateTime, Empty, input, Loading, PaymentBadge, StatusBadge, whatsappLink } from '@/components/admin/ui'
+import { card, dateTime, Empty, input, Loading, PaymentBadge, StatusBadge, whatsappLink, done } from '@/components/admin/ui'
 import Modal from '@/components/store/Modal'
 import { orderFlow, type AdminOrder } from '@/data/admin'
-import { couriers } from '@/data/store'
 import { formatPKR } from '@/lib/pricing'
 import type { OrderStatus } from '@/types'
 
@@ -52,7 +51,7 @@ export default function AdminOrderPage() {
   const advance = () => {
     if (!step) return
     updateOrder(order.number, { status: step.to }, step.event)
-    toast.success(`${order.number}: ${step.to}`)
+    done(`${order.number}: ${step.to}`)
   }
 
   const saveNote = (e: FormEvent) => {
@@ -98,6 +97,12 @@ export default function AdminOrderPage() {
               <Truck size={17} /> Dispatch order
             </button>
           )}
+          <Link href={`/admin/orders/${order.number}/print`} className="btn-outline">
+            <Printer size={17} /> Invoice
+          </Link>
+          <Link href={`/admin/orders/${order.number}/print?type=slip`} className="btn-outline">
+            Packing slip
+          </Link>
           {open && (
             <button type="button" onClick={() => setDialog('cancel')} className="btn-outline">
               Cancel order
@@ -107,26 +112,35 @@ export default function AdminOrderPage() {
       </div>
 
       {order.status !== 'Cancelled' ? (
-        <ol className="mt-6 grid grid-cols-6 gap-1.5" aria-label="Order progress">
-          {orderFlow.map((s, i) => (
-            <li key={s}>
-              <div className={clsx('h-1.5 rounded-full', i <= reached ? 'bg-caramel' : 'bg-wax')} />
-              <span
-                className={clsx('mt-2 hidden text-xs sm:block', i <= reached ? 'text-espresso' : 'text-umber/70')}
-                aria-current={i === reached ? 'step' : undefined}
-              >
-                {s === 'Pending Confirmation' ? 'Received' : s}
-              </span>
-            </li>
-          ))}
-        </ol>
+        <>
+          {/* Phones hide the step names, so name the current one here */}
+          <p className="mt-6 text-sm text-umber sm:hidden">
+            Step {reached + 1} of {orderFlow.length}:{' '}
+            <span className="font-medium text-espresso">
+              {order.status === 'Pending Confirmation' ? 'Received' : order.status}
+            </span>
+          </p>
+          <ol className="mt-2 grid grid-cols-6 gap-1.5 sm:mt-6" aria-label="Order progress">
+            {orderFlow.map((s, i) => (
+              <li key={s}>
+                <div className={clsx('h-1.5 rounded-full', i <= reached ? 'bg-caramel' : 'bg-wax')} />
+                <span
+                  className={clsx('mt-2 hidden text-xs sm:block', i <= reached ? 'text-espresso' : 'text-umber/70')}
+                  aria-current={i === reached ? 'step' : undefined}
+                >
+                  {s === 'Pending Confirmation' ? 'Received' : s}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </>
       ) : (
         <p className="mt-6 rounded-2xl bg-wine/10 p-4 text-wine">
           Cancelled. {order.cancelReason ?? 'No reason recorded.'}
         </p>
       )}
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+      <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[1.6fr_1fr]">
         <div className="space-y-6">
           <section className={`${card} overflow-hidden`} aria-labelledby="items-h">
             <h2 id="items-h" className="p-5 pb-3 text-2xl sm:px-6">
@@ -172,7 +186,7 @@ export default function AdminOrderPage() {
             </div>
             {order.shipment ? (
               <>
-                <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+                <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <Field label="Courier" value={order.shipment.courier} />
                   <Field label="Tracking ID" value={order.shipment.trackingId} />
                   <Field label="Dispatched" value={dateTime(order.shipment.dispatchedAt)} />
@@ -341,8 +355,10 @@ export default function AdminOrderPage() {
 }
 
 function DispatchDialog({ order, open, onClose }: { order: AdminOrder; open: boolean; onClose: () => void }) {
-  const { updateOrder } = useAdmin()
-  const [courier, setCourier] = useState(order.shipment?.courier ?? couriers[0].name)
+  const { updateOrder, settings } = useAdmin()
+  // Couriers switched on in Settings, plus the one already on this order
+  const couriers = settings.couriers.filter(c => c.active || c.name === order.shipment?.courier)
+  const [courier, setCourier] = useState(order.shipment?.courier ?? couriers[0]?.name ?? '')
   const [trackingId, setTrackingId] = useState(order.shipment?.trackingId ?? '')
   const [error, setError] = useState('')
   const editing = Boolean(order.shipment)
@@ -350,8 +366,9 @@ function DispatchDialog({ order, open, onClose }: { order: AdminOrder; open: boo
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const id = trackingId.trim()
+    if (!courier) return setError('Switch on at least one courier in Settings first.')
     if (id.length < 6) return setError('Enter the tracking ID from the courier slip, at least 6 characters.')
-    const trackingUrl = couriers.find(c => c.name === courier)!.trackingUrl
+    const trackingUrl = couriers.find(c => c.name === courier)?.trackingUrl ?? ''
     updateOrder(
       order.number,
       {
@@ -365,7 +382,7 @@ function DispatchDialog({ order, open, onClose }: { order: AdminOrder; open: boo
       },
       editing ? `Shipment updated: ${courier}, tracking ${id}` : `Dispatched with ${courier}, tracking ${id}`,
     )
-    toast.success(editing ? 'Shipment updated' : `${order.number} dispatched`)
+    done(editing ? 'Shipment updated' : `${order.number} dispatched`)
     onClose()
   }
 
@@ -432,7 +449,7 @@ function CancelDialog({ order, open, onClose }: { order: AdminOrder; open: boole
 
   const confirm = () => {
     updateOrder(order.number, { status: 'Cancelled', cancelReason: `${reason}.` }, `Order cancelled. ${reason}.`)
-    toast.success(`${order.number} cancelled`)
+    done(`${order.number} cancelled`)
     onClose()
   }
 

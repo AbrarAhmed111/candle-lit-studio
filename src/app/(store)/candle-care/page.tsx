@@ -12,7 +12,7 @@ export default function CandleCarePage() {
   return (
     <div className="page pt-8 lg:pt-12">
       <Breadcrumbs items={[{ label: 'Candle care' }]} />
-      <div className="mt-6 grid gap-10 lg:grid-cols-[1fr_1.5fr] lg:gap-20">
+      <div className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1.5fr] lg:gap-20">
         <div>
           <h1 className="text-5xl lg:text-6xl">Candle care</h1>
           <p className="mt-4 text-lg text-umber">

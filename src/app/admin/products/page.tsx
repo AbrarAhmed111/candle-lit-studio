@@ -3,20 +3,18 @@
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { FormEvent, Suspense, useState } from 'react'
-import { ExternalLink, Search } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { Download, Plus, Search, Upload } from 'lucide-react'
 import clsx from 'clsx'
 import { useAdmin, type AdminProduct } from '@/components/admin/AdminData'
-import { card, Empty, input, Loading, PageHeader, td, th } from '@/components/admin/ui'
+import { card, downloadCsv, Empty, input, Loading, PageHeader, td, th, done } from '@/components/admin/ui'
 import Modal from '@/components/store/Modal'
 import ProductPhoto from '@/components/store/ProductPhoto'
 import { LOW_STOCK } from '@/data/admin'
-import { categories } from '@/data/products'
 import { formatPKR, fromPrice, totalStock } from '@/lib/pricing'
 
 const stockFilters = [
   { key: '', label: 'All products' },
-  { key: 'low', label: 'Low stock' },
+  { key: 'low', label: 'Needs restock' },
   { key: 'out', label: 'Out of stock' },
   { key: 'hidden', label: 'Hidden' },
 ]
@@ -27,8 +25,15 @@ const stockState = (p: AdminProduct) => {
   return 'ok'
 }
 
+/** Needs restock covers low and sold-out sizes, so it matches the overview's stock alert */
+const matchesFilter = (p: AdminProduct, key: string) => {
+  if (key === 'hidden') return !p.active
+  if (key === 'low') return stockState(p) !== 'ok'
+  return stockState(p) === key
+}
+
 function Products() {
-  const { products, setProductActive } = useAdmin()
+  const { products, categories, setProductActive } = useAdmin()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
   const [filter, setFilter] = useState(useSearchParams().get('stock') ?? '')
@@ -39,18 +44,47 @@ function Products() {
     p =>
       (!q || p.name.toLowerCase().includes(q) || p.variants.some(v => v.sku.toLowerCase().includes(q))) &&
       (!category || p.categories.includes(category)) &&
-      (!filter || (filter === 'hidden' ? !p.active : stockState(p) === filter)),
+      (!filter || matchesFilter(p, filter)),
   )
   const edited = products.find(p => p.id === editing)
 
   return (
     <>
-      <PageHeader title="Products" text={`${products.length} candles, ${products.filter(p => p.active).length} visible in the store.`} />
+      <PageHeader title="Products" text={`${products.length} candles, ${products.filter(p => p.active).length} visible in the store.`}>
+        <button
+          type="button"
+          onClick={() =>
+            downloadCsv('products.csv', [
+              ['name', 'size', 'sku', 'price', 'stock', 'category', 'in store'],
+              ...products.flatMap(p =>
+                p.variants.map(v => [
+                  p.name,
+                  v.label,
+                  v.sku,
+                  v.price,
+                  v.stock,
+                  categories.find(c => c.slug === p.categories[0])?.name ?? '',
+                  p.active ? 'yes' : 'no',
+                ]),
+              ),
+            ])
+          }
+          className="btn-outline min-h-11 px-5 text-sm"
+        >
+          <Download size={16} /> Export
+        </button>
+        <Link href="/admin/products/import" className="btn-outline min-h-11 px-5 text-sm">
+          <Upload size={16} /> Import
+        </Link>
+        <Link href="/admin/products/new" className="btn-primary">
+          <Plus size={17} /> Add product
+        </Link>
+      </PageHeader>
 
-      <div className="no-scroll -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filter products">
+      <div className="no-scroll relative -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filter products">
         {stockFilters.map(f => {
           const count = f.key
-            ? products.filter(p => (f.key === 'hidden' ? !p.active : stockState(p) === f.key)).length
+            ? products.filter(p => matchesFilter(p, f.key)).length
             : products.length
           return (
             <button
@@ -70,7 +104,7 @@ function Products() {
         })}
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
         <div className="relative">
           <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-umber" />
           <input
@@ -96,7 +130,7 @@ function Products() {
         {found.length === 0 ? (
           <Empty title="No products match" text="Try a different search or filter." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[46rem] text-[0.95rem]">
               <thead className="border-b border-hairline bg-wax/50">
                 <tr>
@@ -123,7 +157,9 @@ function Products() {
                             <ProductPhoto product={p} sizes="48px" decorative />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium">{p.name}</p>
+                            <Link href={`/admin/products/${p.id}`} className="font-medium hover:text-caramel">
+                              {p.name}
+                            </Link>
                             <p className="truncate text-sm text-umber">
                               {p.variants.length} {p.variants.length === 1 ? 'size' : 'sizes'},{' '}
                               {categories.find(c => c.slug === p.categories[0])?.name}
@@ -131,7 +167,7 @@ function Products() {
                           </div>
                         </div>
                       </td>
-                      <td className={`${td} text-right tabular-nums`}>
+                      <td className={`${td} whitespace-nowrap text-right tabular-nums`}>
                         {p.variants.length > 1 && <span className="text-sm text-umber">From </span>}
                         {formatPKR(sale)}
                         {sale < original && <span className="block text-sm text-umber">{p.discountPercent}% off</span>}
@@ -153,7 +189,7 @@ function Products() {
                           aria-label={`Show ${p.name} in the store`}
                           onClick={() => {
                             setProductActive(p.id, !p.active)
-                            toast.success(p.active ? `${p.name} hidden` : `${p.name} visible`)
+                            done(p.active ? `${p.name} hidden` : `${p.name} visible`)
                           }}
                           className={clsx(
                             'relative h-7 w-12 rounded-full transition-colors',
@@ -170,15 +206,10 @@ function Products() {
                       </td>
                       <td className={`${td} whitespace-nowrap text-right`}>
                         <button type="button" onClick={() => setEditing(p.id)} className="link min-h-11 px-2 text-sm">
-                          Edit price and stock
+                          Price and stock
                         </button>
-                        <Link
-                          href={`/products/${p.slug}`}
-                          target="_blank"
-                          aria-label={`View ${p.name} in the store`}
-                          className="ml-1 inline-grid h-11 w-11 place-items-center align-middle text-umber hover:text-caramel"
-                        >
-                          <ExternalLink size={16} />
+                        <Link href={`/admin/products/${p.id}`} className="link ml-2 inline-flex min-h-11 items-center px-2 text-sm">
+                          Edit
                         </Link>
                       </td>
                     </tr>
@@ -221,7 +252,7 @@ function StockForm({ product, onDone }: { product: AdminProduct; onDone: () => v
     if (parsed.some(r => !Number.isInteger(r.stock) || r.stock < 0))
       return setError('Enter each stock count as a whole number, 0 or more.')
     parsed.forEach(r => setVariant(r.id, { price: r.price, stock: r.stock }))
-    toast.success(`${product.name} updated`)
+    done(`${product.name} updated`)
     onDone()
   }
 

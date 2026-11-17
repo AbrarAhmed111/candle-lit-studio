@@ -35,3 +35,24 @@ export const findOrder = (number: string, phone?: string) => {
   if (phone !== undefined && order.customer.phone !== phone) return null
   return order
 }
+
+// With Supabase connected, the confirmation page needs the secret the
+// database returned when the order was placed. It stays in this browser.
+const ACCESS_KEY = 'cls_order_access'
+
+export const rememberOrderAccess = (number: string, token: string) => {
+  try {
+    const all = JSON.parse(window.localStorage.getItem(ACCESS_KEY) ?? '{}')
+    window.localStorage.setItem(ACCESS_KEY, JSON.stringify({ ...all, [number]: token }))
+  } catch {
+    // ignore: the link in the URL still works
+  }
+}
+
+export const orderAccess = (number: string): string | null => {
+  try {
+    return JSON.parse(window.localStorage.getItem(ACCESS_KEY) ?? '{}')[number] ?? null
+  } catch {
+    return null
+  }
+}

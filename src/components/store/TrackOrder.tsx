@@ -4,6 +4,8 @@ import { FormEvent, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import OrderDetails from './OrderDetails'
 import { findOrder } from '@/lib/orders'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { trackOrder } from '@/lib/actions/store'
 import { normalisePkMobile } from '@/lib/pricing'
 import type { Order } from '@/types'
 
@@ -13,14 +15,24 @@ export default function TrackOrder() {
   const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     setOrder(null)
     const mobile = normalisePkMobile(phone)
     if (!number.trim()) return setError('Enter your order number. It looks like CND-1024.')
     if (!mobile) return setError('Enter the mobile number you used at checkout, like 0300 1234567.')
-    const found = findOrder(number, mobile)
+    let found: Order | null
+    if (isSupabaseConfigured) {
+      setBusy(true)
+      const result = await trackOrder(number, mobile)
+      setBusy(false)
+      if (!result.ok) return setError(result.error)
+      found = result.data
+    } else {
+      found = findOrder(number, mobile)
+    }
     if (!found)
       return setError(
         'No order matches that number and mobile. Check both against your confirmation message.',
@@ -32,7 +44,7 @@ export default function TrackOrder() {
   return (
     <>
       <form onSubmit={submit} noValidate className="max-w-2xl">
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
             <label htmlFor="order-number" className="field-label">
               Order number
@@ -67,12 +79,12 @@ export default function TrackOrder() {
             {error}
           </p>
         )}
-        <button type="submit" className="btn-primary mt-6">
-          Find my order
+        <button type="submit" disabled={busy} className="btn-primary mt-6">
+          {busy ? 'Looking…' : 'Find my order'}
         </button>
-        <p className="mt-4 text-sm text-umber">
-          Demo order: CND-1024 with 0300 1234567.
-        </p>
+        {!isSupabaseConfigured && (
+          <p className="mt-4 text-sm text-umber">Demo order: CND-1024 with 0300 1234567.</p>
+        )}
       </form>
 
       {order && (

@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { Tag, X } from 'lucide-react'
 import { checkCoupon, computeTotals, formatPKR } from '@/lib/pricing'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { validateCoupon } from '@/lib/actions/store'
+import { registerCoupon } from '@/lib/catalog/hydrate'
 import { useAppDispatch, useAppSelector } from '@/store/store'
 import { setCoupon } from '@/store/cart/CartSlice'
 
@@ -19,10 +22,23 @@ export default function OrderSummary({
   const couponCode = useAppSelector(s => s.cart.couponCode)
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
 
   // Not a <form>: this sits inside the checkout form, and forms cannot nest
-  const apply = () => {
+  const apply = async () => {
     if (!code.trim()) return setError('Enter a coupon code.')
+    if (isSupabaseConfigured) {
+      // Codes are checked on the server: the list is never sent to the browser
+      setChecking(true)
+      const result = await validateCoupon(code, totals.subtotal)
+      setChecking(false)
+      if (!result.ok) return setError(result.error)
+      registerCoupon(result.data)
+      dispatch(setCoupon(result.data.code))
+      setCode('')
+      setError(null)
+      return
+    }
     const check = checkCoupon(code, totals.subtotal)
     if (!check.ok) return setError(check.message)
     dispatch(setCoupon(check.coupon.code))
@@ -77,8 +93,8 @@ export default function OrderSummary({
               aria-describedby={error ? 'coupon-error' : undefined}
               className="field"
             />
-            <button type="button" onClick={apply} className="btn-outline shrink-0 px-5">
-              Apply
+            <button type="button" onClick={apply} disabled={checking} className="btn-outline shrink-0 px-5">
+              {checking ? 'Checking…' : 'Apply'}
             </button>
           </div>
           {(error || (couponCode && totals.couponError)) && (

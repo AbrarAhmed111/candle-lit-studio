@@ -8,7 +8,10 @@ import ProductPhoto from '@/components/store/ProductPhoto'
 import OrderSummary from '@/components/store/OrderSummary'
 import { cities } from '@/data/store'
 import { computeTotals, formatPKR, normalisePkMobile } from '@/lib/pricing'
-import { nextOrderNumber, saveOrder } from '@/lib/orders'
+import { nextOrderNumber, rememberOrderAccess, saveOrder } from '@/lib/orders'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { placeOrder } from '@/lib/actions/store'
+import toast from 'react-hot-toast'
 import { useAppDispatch, useAppSelector } from '@/store/store'
 import { clearCart } from '@/store/cart/CartSlice'
 import type { Order } from '@/types'
@@ -57,6 +60,7 @@ export default function CheckoutPage() {
   const [fields, setFields] = useState<Fields>(empty)
   const [errors, setErrors] = useState<Partial<Record<keyof Fields, string>>>({})
   const [placing, setPlacing] = useState(false)
+  const [placeError, setPlaceError] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
   const set = (key: keyof Fields) => (
@@ -66,7 +70,7 @@ export default function CheckoutPage() {
     if (errors[key]) setErrors(er => ({ ...er, [key]: undefined }))
   }
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (placing) return // guards against a double tap
     const found = validate(fields)
@@ -78,6 +82,36 @@ export default function CheckoutPage() {
     }
 
     setPlacing(true)
+    setPlaceError(null)
+
+    if (isSupabaseConfigured) {
+      // The database checks stock, prices and the coupon again before it accepts the order
+      const result = await placeOrder({
+        customer: {
+          name: fields.name.trim(),
+          phone: fields.phone,
+          email: fields.email.trim() || undefined,
+          city: fields.city,
+          area: fields.area.trim(),
+          address: fields.address.trim(),
+          landmark: fields.landmark.trim() || undefined,
+          notes: fields.notes.trim() || undefined,
+        },
+        lines: totals.lines.map(l => ({ variantId: l.variant.id, qty: l.qty })),
+        couponCode: totals.coupon?.code ?? null,
+      })
+      if (!result.ok) {
+        setPlacing(false)
+        setPlaceError(result.error)
+        toast.error(result.error)
+        return
+      }
+      rememberOrderAccess(result.data.number, result.data.accessToken)
+      router.push(`/order/${result.data.number}?placed=1&t=${result.data.accessToken}`)
+      dispatch(clearCart())
+      return
+    }
+
     const order: Order = {
       number: nextOrderNumber(),
       placedAt: new Date().toISOString(),
@@ -181,14 +215,14 @@ export default function CheckoutPage() {
         ref={formRef}
         onSubmit={submit}
         noValidate
-        className="mt-10 grid gap-10 lg:grid-cols-[1fr_24rem] lg:gap-16"
+        className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_24rem] lg:gap-16"
       >
         <div className="space-y-12">
           <section aria-labelledby="contact-h">
             <h2 id="contact-h" className="text-3xl">
               Who is this for?
             </h2>
-            <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
               {field('name', 'Full name', { autoComplete: 'name' })}
               {field('phone', 'Mobile number', {
                 type: 'tel',
@@ -212,7 +246,7 @@ export default function CheckoutPage() {
             <h2 id="address-h" className="text-3xl">
               Where should we deliver?
             </h2>
-            <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div>
                 <label htmlFor="city" className="field-label">
                   City
@@ -306,6 +340,11 @@ export default function CheckoutPage() {
             ))}
           </ul>
           <OrderSummary totals={totals}>
+            {placeError && (
+              <p role="alert" className="mb-3 rounded-xl border border-wine/30 bg-wine/5 p-3 text-sm text-wine">
+                {placeError}
+              </p>
+            )}
             <button type="submit" disabled={placing} className="btn-primary w-full">
               {placing ? 'Placing your order…' : `Place order, pay ${formatPKR(totals.total)} on delivery`}
             </button>

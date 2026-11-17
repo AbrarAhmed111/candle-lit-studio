@@ -1,13 +1,16 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
+import { sendContactMessage } from '@/lib/actions/store'
 
 export default function ContactForm() {
   const [values, setValues] = useState({ name: '', contact: '', message: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [sent, setSent] = useState(false)
 
-  const submit = (e: FormEvent) => {
+  const [sending, setSending] = useState(false)
+
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     const found: Record<string, string> = {}
     if (values.name.trim().length < 2) found.name = 'Enter your name.'
@@ -16,7 +19,12 @@ export default function ContactForm() {
     if (values.message.trim().length < 10)
       found.message = 'Tell us a little more, at least 10 characters.'
     setErrors(found)
-    if (Object.keys(found).length === 0) setSent(true)
+    if (Object.keys(found).length > 0) return
+    setSending(true)
+    const result = await sendContactMessage(values)
+    setSending(false)
+    if (!result.ok) return setErrors({ message: result.error })
+    setSent(true)
   }
 
   if (sent) {
@@ -65,8 +73,8 @@ export default function ContactForm() {
         <textarea {...bind('message')} rows={5} className="field py-3" />
         {errors.message && <p className="field-error">{errors.message}</p>}
       </div>
-      <button type="submit" className="btn-primary">
-        Send message
+      <button type="submit" disabled={sending} className="btn-primary">
+        {sending ? 'Sending…' : 'Send message'}
       </button>
     </form>
   )

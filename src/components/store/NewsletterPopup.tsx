@@ -6,6 +6,7 @@ import { Check, Copy } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import Modal from './Modal'
+import { subscribeToNewsletter } from '@/lib/actions/store'
 import { photoUrl } from './ProductPhoto'
 
 const DELAY_MS = 7000
@@ -64,9 +65,14 @@ export default function NewsletterPopup() {
     setOpen(false)
   }
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setState('error')
+    const result = await subscribeToNewsletter(email, 'Popup')
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
     setState('done')
     write('localStorage', OFF_KEY)
   }
@@ -85,7 +91,7 @@ export default function NewsletterPopup() {
       open={open}
       onClose={close}
       label="Join the newsletter for 10% off"
-      className="grid max-w-4xl overflow-hidden rounded-[2rem] bg-ivory shadow-2xl md:grid-cols-[0.9fr_1fr]"
+      className="grid grid-cols-1 max-w-4xl overflow-hidden rounded-[2rem] bg-ivory shadow-2xl md:grid-cols-[0.9fr_1fr]"
     >
       <div className="relative h-32 overflow-hidden bg-wax sm:h-40 md:h-auto md:min-h-[34rem]">
         {/* eslint-disable-next-line @next/next/no-img-element */}

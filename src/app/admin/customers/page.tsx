@@ -79,7 +79,7 @@ export default function AdminCustomersPage() {
         </button>
       </PageHeader>
 
-      <div className="mt-8 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+      <div className="mt-8 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
         <div className="relative">
           <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-umber" />
           <input
@@ -108,7 +108,7 @@ export default function AdminCustomersPage() {
         {found.length === 0 ? (
           <Empty title="No customers match" text="Try a different search or filter." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[44rem] text-[0.95rem]">
               <thead className="border-b border-hairline bg-wax/50">
                 <tr>

@@ -10,6 +10,7 @@ import { categories } from '@/data/products'
 import { store } from '@/data/store'
 import { useAppDispatch, useAppSelector } from '@/store/store'
 import { setDrawer } from '@/store/cart/CartSlice'
+import Logo from '@/components/Logo'
 
 const links = [
   { href: '/collections/gift-sets', label: 'Gift sets' },
@@ -57,6 +58,21 @@ export default function Header() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Escape closes whichever panel is open
+  useEffect(() => {
+    if (!menuOpen && !searchOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setMenuOpen(false)
+      setSearchOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuOpen, searchOpen])
+
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
+  const shopActive = pathname === '/shop' || (pathname.startsWith('/collections/') && !isActive('/collections/gift-sets'))
+
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
     return () => {
@@ -86,8 +102,8 @@ export default function Header() {
             : 'bg-ivory/80 text-espresso shadow-[0_10px_30px_-22px_rgba(46,31,23,0.6)] backdrop-blur-xl',
         )}
       >
-        <p className="flex h-8 items-center justify-center overflow-hidden whitespace-nowrap bg-espresso px-3 text-[0.72rem] text-ivory sm:text-[0.8rem]">
-          {store.announcement}
+        <p className="flex h-8 items-center justify-center bg-espresso px-3 text-[0.72rem] text-ivory sm:text-[0.8rem]">
+          <span className="truncate">{store.announcement}</span>
         </p>
 
         <div
@@ -105,14 +121,20 @@ export default function Header() {
             <Menu size={22} />
           </button>
 
-          <Link href="/" className="font-display text-[1.45rem] italic leading-none lg:text-[1.7rem]">
-            Candle Lit Studio
+          <Link href="/" aria-label={`${store.name}, home`} className="shrink-0">
+            <Logo
+              priority
+              size={scrolled ? 38 : 46}
+              name={store.name}
+              className="[&>img]:transition-[width,height] [&>img]:duration-500"
+              nameClassName="hidden text-[1.45rem] min-[400px]:inline lg:text-[1.7rem]"
+            />
           </Link>
 
           <nav aria-label="Main" className="hidden items-center gap-8 text-[0.95rem] lg:flex">
             <div className="group relative">
-              <Link href="/shop" className="flex items-center gap-1 py-5">
-                <span className="draw-link">Shop</span>
+              <Link href="/shop" aria-current={shopActive ? 'page' : undefined} className="flex items-center gap-1 py-5">
+                <span className={clsx('draw-link', shopActive && 'is-current')}>Shop</span>
                 <ChevronDown size={15} className="transition-transform duration-300 group-hover:rotate-180" />
               </Link>
               <div className="invisible absolute -left-4 top-full w-72 translate-y-2 rounded-2xl border border-hairline bg-linen p-2 text-espresso opacity-0 shadow-[0_30px_60px_-30px_rgba(46,31,23,0.5)] transition-all duration-300 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
@@ -134,7 +156,12 @@ export default function Header() {
               </div>
             </div>
             {links.map(l => (
-              <Link key={l.href} href={l.href} className="draw-link py-1">
+              <Link
+                key={l.href}
+                href={l.href}
+                aria-current={isActive(l.href) ? 'page' : undefined}
+                className={clsx('draw-link py-1', isActive(l.href) && 'is-current')}
+              >
                 {l.label}
               </Link>
             ))}
@@ -207,7 +234,7 @@ export default function Header() {
           />
           <div className="drawer relative flex h-full w-[86%] max-w-sm flex-col overflow-y-auto bg-ivory p-6">
             <div className="mb-6 flex items-center justify-between">
-              <span className="font-display text-2xl italic">Candle Lit Studio</span>
+              <Logo size={44} name={store.name} nameClassName="text-2xl" />
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}

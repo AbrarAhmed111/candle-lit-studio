@@ -1,0 +1,22 @@
+# Supabase CLI settings. Used by `supabase start` (local) and `supabase db push`.
+project_id = "candle-lit-studio"
+
+[db]
+major_version = 17
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+
+# Google sign-in for `supabase start` only. Set enabled = true and the two
+# environment variables to use it locally. The hosted project is set up under
+# Authentication > Providers instead.
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+skip_nonce_check = true

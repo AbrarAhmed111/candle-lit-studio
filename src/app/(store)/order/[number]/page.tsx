@@ -1,22 +1,32 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import OrderDetails from '@/components/store/OrderDetails'
 import CandleArt from '@/components/store/CandleArt'
-import { localOrders } from '@/lib/orders'
+import { localOrders, orderAccess } from '@/lib/orders'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { getPlacedOrder } from '@/lib/actions/store'
 import type { Order } from '@/types'
 
 // Confirmation page. Only orders placed from this browser open here;
 // anyone else must verify their phone number on the Track order page.
 export default function OrderPage() {
   const { number } = useParams<{ number: string }>()
+  const token = useSearchParams().get('t')
   const [order, setOrder] = useState<Order | null | undefined>(undefined)
 
   useEffect(() => {
-    setOrder(localOrders().find(o => o.number === number.toUpperCase()) ?? null)
-  }, [number])
+    const wanted = number.toUpperCase()
+    if (!isSupabaseConfigured) {
+      setOrder(localOrders().find(o => o.number === wanted) ?? null)
+      return
+    }
+    const secret = token ?? orderAccess(wanted)
+    if (!secret) return setOrder(null)
+    getPlacedOrder(wanted, secret).then(r => setOrder(r.ok ? r.data : null))
+  }, [number, token])
 
   if (order === undefined) {
     return <div className="page py-24 text-center text-umber">Loading your order…</div>

@@ -5,12 +5,17 @@ import Breadcrumbs from '@/components/store/Breadcrumbs'
 import Catalogue from '@/components/store/Catalogue'
 import ProductPhoto from '@/components/store/ProductPhoto'
 import { categories, getCategory, getProduct } from '@/data/products'
+import { loadCatalog } from '@/lib/catalog/server'
 
 type Props = { params: Promise<{ slug: string }> }
 
-export const generateStaticParams = () => categories.map(c => ({ slug: c.slug }))
+export const generateStaticParams = async () => {
+  await loadCatalog()
+  return categories.map(c => ({ slug: c.slug }))
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  await loadCatalog()
   const category = getCategory((await params).slug)
   if (!category) return {}
   return {
@@ -21,6 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CollectionPage({ params }: Props) {
+  await loadCatalog()
   const category = getCategory((await params).slug)
   if (!category) notFound()
   const cover = getProduct(category.cover)!
@@ -28,7 +34,7 @@ export default async function CollectionPage({ params }: Props) {
   return (
     <>
       <section className="bg-wax">
-        <div className="page grid items-end gap-6 pt-8 md:grid-cols-[1fr_auto] lg:pt-12">
+        <div className="page grid grid-cols-1 items-end gap-6 pt-8 md:grid-cols-[1fr_auto] lg:pt-12">
           <div className="pb-10 lg:pb-16">
             <Breadcrumbs
               items={[{ label: 'All candles', href: '/shop' }, { label: category.name }]}

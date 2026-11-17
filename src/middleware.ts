@@ -13,7 +13,7 @@ export async function middleware(request: NextRequest) {
 	if (isLocal) return await updateSession(request)
 
 	// Define auth pages that should work on admin subdomain
-	const authPages = ['/signin', '/signup', '/welcome', '/forget-password', '/reset-password']
+	const authPages = ['/signin', '/signup', '/auth/callback']
 	const isAuthPage = authPages.some(page => pathname.startsWith(page))
 
 	// Handle admin subdomain routing

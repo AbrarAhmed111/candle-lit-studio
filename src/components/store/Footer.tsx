@@ -3,13 +3,16 @@ import { FaFacebookF, FaInstagram, FaWhatsapp } from 'react-icons/fa'
 import { categories } from '@/data/products'
 import { builtBy, store } from '@/data/store'
 import NewsletterForm from './NewsletterForm'
+import Logo from '@/components/Logo'
 
 export default function Footer() {
   return (
     <footer className="mt-24 bg-soot text-wax">
-      <div className="page grid gap-12 py-16 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
+      <div className="page grid grid-cols-1 gap-12 py-16 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
         <div>
-          <p className="font-display text-3xl italic text-ivory">Candle Lit Studio</p>
+          <Link href="/" aria-label={`${store.name}, home`} className="inline-block">
+            <Logo size={64} name={store.name} nameClassName="text-3xl text-ivory" />
+          </Link>
           <p className="mt-4 max-w-xs text-[0.95rem] text-wax/75">
             Hand-poured in Quetta. Slow to make, slow to burn, hard to forget.
           </p>

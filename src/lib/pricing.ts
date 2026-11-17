@@ -2,11 +2,12 @@ import { coupons, store } from '@/data/store'
 import { getProductById } from '@/data/products'
 import type { CartItem, Coupon, Product, Variant } from '@/types'
 
-// Client-side mirror of the pricing rules. The server repeats every
-// calculation at checkout once the backend exists.
+// Client-side mirror of the pricing rules. With Supabase connected,
+// place_order() repeats every calculation and its numbers are final.
 
 export const formatPKR = (amount: number) =>
-  `Rs. ${Math.round(amount).toLocaleString('en-US')}`
+  // A non-breaking space keeps "Rs." on the same line as the amount
+  `Rs. ${Math.round(amount).toLocaleString('en-US')}`
 
 /** Discounted unit price, rounded to the nearest rupee. */
 export const salePrice = (product: Product, variant: Variant) =>
@@ -90,7 +91,8 @@ export const computeTotals = (items: CartItem[], couponCode?: string | null) => 
     couponDiscount = Math.min(coupon.value, subtotal)
   }
 
-  const qualifiesFree = subtotal - couponDiscount >= store.freeShippingOver
+  // A threshold of 0 switches free delivery off
+  const qualifiesFree = store.freeShippingOver > 0 && subtotal - couponDiscount >= store.freeShippingOver
   const shipping =
     lines.length === 0 || qualifiesFree || coupon?.type === 'free_shipping'
       ? 0
@@ -109,7 +111,7 @@ export const computeTotals = (items: CartItem[], couponCode?: string | null) => 
     shipping,
     total,
     savings: productSavings + couponDiscount + shippingSaved,
-    toFreeShipping: Math.max(0, store.freeShippingOver - (subtotal - couponDiscount)),
+    toFreeShipping: store.freeShippingOver > 0 ? Math.max(0, store.freeShippingOver - (subtotal - couponDiscount)) : 0,
     itemCount: lines.reduce((s, l) => s + l.qty, 0),
   }
 }

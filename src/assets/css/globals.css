@@ -101,12 +101,20 @@
     @apply underline decoration-caramel decoration-1 underline-offset-4 transition-colors hover:text-caramel;
   }
 
+  .field:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
   .field-label {
     @apply mb-1.5 block text-sm font-medium text-espresso;
   }
 
   .field {
     @apply block min-h-12 w-full rounded-xl border border-hairline bg-linen px-4 text-base transition-shadow text-espresso placeholder:text-umber/60 focus:border-caramel focus:outline-none focus:ring-1 focus:ring-caramel;
+  }
+
+  .field[aria-invalid='true'] {
+    @apply border-wine bg-wine/[0.03] focus:border-wine focus:ring-wine;
   }
 
   .field-error {
@@ -245,6 +253,17 @@
 
 .no-scroll::-webkit-scrollbar {
   display: none !important;
+}
+
+/* The WhatsApp button rises above the product page's pinned buy bar */
+@media (max-width: 1023px) {
+  body[data-buybar='on'] {
+    padding-bottom: 4.75rem;
+  }
+
+  body[data-buybar='on'] .wa-btn {
+    bottom: 5.75rem;
+  }
 }
 
 /* ---------- Motion system ---------- */
@@ -543,6 +562,7 @@
 }
 
 .draw-link:hover,
+.draw-link.is-current,
 .group:hover .draw-link {
   background-size: 100% 1px;
 }

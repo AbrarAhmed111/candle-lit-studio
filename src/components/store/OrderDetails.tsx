@@ -38,7 +38,7 @@ export default function OrderDetails({ order }: { order: Order }) {
   }
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[1fr_22rem] lg:gap-16">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_22rem] lg:gap-16">
       <div>
         <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-espresso pb-4">
           <h2 className="text-3xl">Order {order.number}</h2>
@@ -76,7 +76,7 @@ export default function OrderDetails({ order }: { order: Order }) {
             <h3 id="shipment-h" className="text-2xl">
               Shipment
             </h3>
-            <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+            <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <dt className="text-sm text-umber">Courier</dt>
                 <dd className="mt-0.5 font-medium">{order.shipment.courier}</dd>

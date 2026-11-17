@@ -12,7 +12,7 @@ export default function FaqPage() {
   return (
     <div className="page pt-8 lg:pt-12">
       <Breadcrumbs items={[{ label: 'Questions and answers' }]} />
-      <div className="mt-6 grid gap-10 lg:grid-cols-[1fr_1.6fr] lg:gap-20">
+      <div className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1.6fr] lg:gap-20">
         <div>
           <h1 className="text-5xl lg:text-6xl">Questions and answers</h1>
           <p className="mt-4 text-lg text-umber">

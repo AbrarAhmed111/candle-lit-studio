@@ -32,7 +32,7 @@ export default function AccountOverview() {
       <h1 className="text-5xl italic lg:text-6xl">Hello, {firstName}</h1>
       <p className="mt-3 text-lg text-umber">Your orders, addresses and saved candles, in one place.</p>
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-3">
+      <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {tiles.map(t => (
           <Link
             key={t.label}
@@ -75,7 +75,7 @@ export default function AccountOverview() {
         </div>
       </section>
 
-      <section className="mt-12 grid gap-4 md:grid-cols-2">
+      <section className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-hairline bg-linen p-6">
           <h2 className="text-2xl">Default address</h2>
           {home ? (

@@ -1,26 +1,36 @@
-'use server'
-
 import { redirect } from 'next/navigation'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 
-// Helper to get current user (Server Components)
+/** The signed-in user, or null (always null in demo mode) */
 export async function getCurrentUser() {
-	const supabase = await createClient()
-	const {
-		data: { user },
-		error
-	} = await supabase.auth.getUser()
-	if (error || !user) return null
-	return user
+  if (!isSupabaseConfigured) return null
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
+  if (error || !user) return null
+  return user
 }
 
-// Require authentication (Server Components)
-export async function requireAuth() {
-	const user = await getCurrentUser()
-	if (!user) {
-		redirect('/signin')
-	}
-	return user
+export async function requireAuth(returnUrl = '/account') {
+  const user = await getCurrentUser()
+  if (!user) redirect(`/signin?returnUrl=${encodeURIComponent(returnUrl)}`)
+  return user
 }
 
+export type StaffAccess = {
+  role: 'Administrator' | 'Manager'
+  modules: string[]
+  name: string
+}
 
+/** The signed-in team member's role, or null for customers and visitors */
+export async function getStaffAccess(): Promise<StaffAccess | null> {
+  if (!isSupabaseConfigured) return null
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('my_staff_role')
+  const row = Array.isArray(data) ? data[0] : data
+  return row ? { role: row.role, modules: row.modules ?? [], name: row.name } : null
+}

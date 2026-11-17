@@ -2,21 +2,24 @@
 
 import { FormEvent, useState } from 'react'
 import clsx from 'clsx'
+import { subscribeToNewsletter } from '@/lib/actions/store'
 
 export default function NewsletterForm({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
   const [email, setEmail] = useState('')
   const [state, setState] = useState<'idle' | 'error' | 'done'>('idle')
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setState('error')
+    const result = await subscribeToNewsletter(email, 'Footer')
+    if (!result.ok) return setState('error')
     setState('done')
   }
 
   if (state === 'done') {
     return (
       <p role="status" className={tone === 'dark' ? 'text-ember' : 'text-sage'}>
-        Subscribed. Check {email} to confirm your address.
+        Subscribed. New scents and offers will reach {email}.
       </p>
     )
   }

@@ -3,13 +3,15 @@ import { FaWhatsapp } from 'react-icons/fa'
 import Breadcrumbs from '@/components/store/Breadcrumbs'
 import ContactForm from '@/components/store/ContactForm'
 import { store } from '@/data/store'
+import { loadCatalog } from '@/lib/catalog/server'
 
 export const metadata: Metadata = {
   title: 'Contact us',
   description: 'Message Candle Lit Studio on WhatsApp, by phone or by email.',
 }
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  await loadCatalog()
   return (
     <div className="page pt-8 lg:pt-12">
       <Breadcrumbs items={[{ label: 'Contact us' }]} />
@@ -18,7 +20,7 @@ export default function ContactPage() {
         Questions about an order, a fragrance or a bulk gift? WhatsApp is fastest.
       </p>
 
-      <div className="mt-12 grid gap-12 lg:grid-cols-2 lg:gap-20">
+      <div className="mt-12 grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-20">
         <div>
           <a
             href={`https://wa.me/${store.whatsapp}`}

@@ -8,10 +8,12 @@ import ProductPhoto from './ProductPhoto'
 import { store } from '@/data/store'
 import { computeTotals, formatPKR } from '@/lib/pricing'
 import { useAppDispatch, useAppSelector } from '@/store/store'
-import { removeItem, setDrawer, setQty } from '@/store/cart/CartSlice'
+import { setDrawer, setQty } from '@/store/cart/CartSlice'
+import { useCartRemove } from './useCartRemove'
 
 export default function CartDrawer() {
   const dispatch = useAppDispatch()
+  const remove = useCartRemove()
   const { items, couponCode, drawerOpen } = useAppSelector(s => s.cart)
   const totals = computeTotals(items, couponCode)
   const close = () => dispatch(setDrawer(false))
@@ -58,7 +60,7 @@ export default function CartDrawer() {
           </button>
         </div>
 
-        {totals.lines.length > 0 && (
+        {totals.lines.length > 0 && store.freeShippingOver > 0 && (
           <div className="px-6 pb-4">
             <p className="text-sm text-umber">
               {totals.toFreeShipping > 0
@@ -138,7 +140,7 @@ export default function CartDrawer() {
                       <button
                         type="button"
                         onClick={() =>
-                          dispatch(removeItem({ productId: l.product.id, variantId: l.variant.id }))
+                          remove({ productId: l.product.id, variantId: l.variant.id, qty: l.qty, name: l.product.name })
                         }
                         className="min-h-9 text-sm text-umber underline-offset-4 hover:text-wine hover:underline"
                       >

@@ -66,7 +66,7 @@ export default function AccountAddresses() {
           <p className="mt-2 text-umber">Add one now and skip the typing at checkout.</p>
         </div>
       ) : (
-        <ul className="mt-8 grid gap-4 md:grid-cols-2">
+        <ul className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
           {account.addresses.map(a => (
             <li key={a.id} className="flex flex-col rounded-2xl border border-hairline bg-linen p-6">
               <div className="flex items-center justify-between gap-3">
@@ -208,7 +208,7 @@ function AddressForm({
   return (
     <form onSubmit={submit} noValidate>
       <h2 className="pr-10 text-3xl">{title}</h2>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {field('label', 'Label, for example Home')}
         {field('name', 'Full name', { autoComplete: 'name' })}
         {field('phone', 'Mobile number', { type: 'tel', inputMode: 'tel', autoComplete: 'tel' })}

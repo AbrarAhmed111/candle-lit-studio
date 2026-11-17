@@ -1,9 +1,11 @@
 import clsx from 'clsx'
 import type { Product } from '@/types'
 
-/** Unsplash CDN URL for a photo id, resized on their side. */
+/** Unsplash CDN URL for a photo id, resized on their side. Full links pass through. */
 export const photoUrl = (id: string, width = 800) =>
-  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${width}&q=75`
+  /^https?:\/\//.test(id)
+    ? id
+    : `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${width}&q=75`
 
 const widths = [240, 480, 800, 1200, 1600]
 
@@ -35,6 +37,8 @@ export default function ProductPhoto({
   'data-zoom': zoom,
 }: Props) {
   const id = product.images[index] ?? product.images[0]
+  // A product saved without photos shows its background colour instead
+  if (!id) return null
 
   return (
     // eslint-disable-next-line @next/next/no-img-element

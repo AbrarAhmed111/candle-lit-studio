@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useMemo, useState } from 'react'
-import { Download, Search } from 'lucide-react'
+import { Download, Plus, Search } from 'lucide-react'
 import clsx from 'clsx'
 import { useAdmin } from '@/components/admin/AdminData'
 import {
@@ -25,6 +25,11 @@ import type { OrderStatus } from '@/types'
 
 const PAGE = 12
 const statuses: OrderStatus[] = [...orderFlow, 'Cancelled']
+// A chip that groups the steps between confirming and dispatching
+const TO_DISPATCH = 'To dispatch'
+const toDispatch: OrderStatus[] = ['Confirmed', 'Processing', 'Packed']
+const matchesStatus = (s: OrderStatus, filter: string) =>
+  filter === TO_DISPATCH ? toDispatch.includes(s) : s === filter
 
 function Orders() {
   const { orders } = useAdmin()
@@ -76,7 +81,7 @@ function Orders() {
       (!city || o.customer.city === city) &&
       (!courier || o.shipment?.courier === courier),
   )
-  const found = status ? base.filter(o => o.status === status) : base
+  const found = status ? base.filter(o => matchesStatus(o.status, status)) : base
   const pages = Math.max(1, Math.ceil(found.length / PAGE))
   const current = Math.min(page, pages)
   const shown = found.slice((current - 1) * PAGE, current * PAGE)
@@ -114,11 +119,14 @@ function Orders() {
         <button type="button" onClick={exportCsv} disabled={found.length === 0} className="btn-outline min-h-11 px-5 text-sm">
           <Download size={16} /> Export {found.length} to CSV
         </button>
+        <Link href="/admin/orders/new" className="btn-primary">
+          <Plus size={17} /> New order
+        </Link>
       </PageHeader>
 
-      <div className="no-scroll -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filter by status">
-        {['', ...statuses].map(s => {
-          const count = s ? base.filter(o => o.status === s).length : base.length
+      <div className="no-scroll relative -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filter by status">
+        {['', statuses[0], TO_DISPATCH, ...statuses.slice(1)].map(s => {
+          const count = s ? base.filter(o => matchesStatus(o.status, s)).length : base.length
           return (
             <button
               key={s || 'all'}
@@ -139,8 +147,8 @@ function Orders() {
         })}
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
-        <div className="relative">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+        <div className="relative col-span-2 sm:col-span-3 lg:col-span-1">
           <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-umber" />
           <input
             type="search"
@@ -154,25 +162,36 @@ function Orders() {
             className={`${input} w-full pl-10`}
           />
         </div>
-        <select aria-label="Payment status" value={payment} onChange={e => { setPayment(e.target.value); setPage(1) }} className={input}>
+        <select aria-label="Payment status" value={payment} onChange={e => { setPayment(e.target.value); setPage(1) }} className={`${input} min-w-0`}>
           <option value="">Any payment status</option>
           {paymentFlow.map(p => (
             <option key={p}>{p}</option>
           ))}
         </select>
-        <select aria-label="City" value={city} onChange={e => { setCity(e.target.value); setPage(1) }} className={input}>
+        <select aria-label="City" value={city} onChange={e => { setCity(e.target.value); setPage(1) }} className={`${input} min-w-0`}>
           <option value="">Any city</option>
           {cities.map(c => (
             <option key={c}>{c}</option>
           ))}
         </select>
-        <select aria-label="Courier" value={courier} onChange={e => { setCourier(e.target.value); setPage(1) }} className={input}>
+        <select aria-label="Courier" value={courier} onChange={e => { setCourier(e.target.value); setPage(1) }} className={`${input} col-span-2 min-w-0 sm:col-span-1`}>
           <option value="">Any courier</option>
           {couriers.map(c => (
             <option key={c}>{c}</option>
           ))}
         </select>
       </div>
+
+      {filtered && found.length > 0 && (
+        <p className="mt-4 flex items-center justify-between gap-3 text-sm text-umber" aria-live="polite">
+          <span>
+            {found.length} {found.length === 1 ? 'order matches' : 'orders match'}
+          </span>
+          <button type="button" onClick={clear} className="link min-h-11">
+            Clear filters
+          </button>
+        </p>
+      )}
 
       <div className={`${card} mt-4 overflow-hidden`}>
         {found.length === 0 ? (
@@ -186,7 +205,7 @@ function Orders() {
         ) : (
           <>
             {/* Table from tablet up, cards on phones */}
-            <div className="hidden overflow-x-auto md:block">
+            <div className="relative hidden overflow-x-auto md:block">
               <table className="w-full min-w-[60rem] text-[0.95rem]">
                 <thead className="border-b border-hairline bg-wax/50">
                   <tr>
@@ -244,7 +263,7 @@ function Orders() {
             <ul className="divide-y divide-hairline md:hidden">
               {shown.map(o => (
                 <li key={o.number}>
-                  <Link href={`/admin/orders/${o.number}`} className="block p-4">
+                  <Link href={`/admin/orders/${o.number}`} className="block p-4 transition-colors active:bg-wax/50">
                     <span className="flex items-center justify-between gap-3">
                       <span className="font-medium">{o.number}</span>
                       <span className="tabular-nums">{formatPKR(o.total)}</span>

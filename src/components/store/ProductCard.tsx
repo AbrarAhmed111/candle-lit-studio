@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { Heart, Plus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check, Heart, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import ProductPhoto from './ProductPhoto'
@@ -21,8 +22,17 @@ export default function ProductCard({ product }: { product: Product }) {
   const firstAvailable = product.variants.find(v => v.stock > 0)
   const hasChoices = product.variants.length > 1
 
+  // The plus turns into a tick for a moment so the tap feels answered
+  const [added, setAdded] = useState(false)
+  useEffect(() => {
+    if (!added) return
+    const t = setTimeout(() => setAdded(false), 1400)
+    return () => clearTimeout(t)
+  }, [added])
+
   const quickAdd = () => {
     if (!firstAvailable) return
+    setAdded(true)
     dispatch(addItem({ productId: product.id, variantId: firstAvailable.id, qty: 1 }))
     // The drawer greets the first item only. After that a toast is enough.
     if (cartEmpty) dispatch(setDrawer(true))
@@ -120,9 +130,14 @@ export default function ProductCard({ product }: { product: Product }) {
             type="button"
             onClick={quickAdd}
             aria-label={`Add ${product.name}${firstAvailable ? `, ${firstAvailable.label},` : ''} to cart`}
-            className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-espresso text-espresso transition-[background-color,color,transform] duration-300 hover:rotate-90 hover:bg-espresso hover:text-ivory active:scale-90"
+            className={clsx(
+              'mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-[background-color,border-color,color,transform] duration-300 active:scale-90',
+              added
+                ? 'border-sage bg-sage text-ivory'
+                : 'border-espresso text-espresso hover:rotate-90 hover:bg-espresso hover:text-ivory',
+            )}
           >
-            <Plus size={18} />
+            {added ? <Check key="added" size={18} className="pop" /> : <Plus size={18} />}
           </button>
         )}
       </div>

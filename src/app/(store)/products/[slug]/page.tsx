@@ -12,12 +12,18 @@ import { getCategory, getProduct, getReviews, products } from '@/data/products'
 import { careSteps, safetyNotes } from '@/data/store'
 import { photoUrl } from '@/components/store/ProductPhoto'
 import { formatDate, fromPrice, totalStock } from '@/lib/pricing'
+import { loadCatalog } from '@/lib/catalog/server'
+import ReviewForm from '@/components/store/ReviewForm'
 
 type Props = { params: Promise<{ slug: string }> }
 
-export const generateStaticParams = () => products.map(p => ({ slug: p.slug }))
+export const generateStaticParams = async () => {
+  await loadCatalog()
+  return products.map(p => ({ slug: p.slug }))
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  await loadCatalog()
   const product = getProduct((await params).slug)
   if (!product) return {}
   return {
@@ -41,6 +47,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ProductPage({ params }: Props) {
+  await loadCatalog()
   const product = getProduct((await params).slug)
   if (!product) notFound()
 
@@ -107,7 +114,7 @@ export default async function ProductPage({ params }: Props) {
         ]}
       />
 
-      <div className="mt-8 grid gap-10 lg:grid-cols-2 lg:gap-20">
+      <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-20">
         <ProductGallery product={product} />
 
         <div>
@@ -176,7 +183,7 @@ export default async function ProductPage({ params }: Props) {
 
       {/* Reviews */}
       <section id="reviews" className="scroll-mt-40 pt-20 lg:pt-28">
-        <div className="grid gap-10 lg:grid-cols-[18rem_1fr] lg:gap-20">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[18rem_1fr] lg:gap-20">
           <div>
             <h2 className="text-4xl">Reviews</h2>
             <p className="mt-5 font-display text-6xl">{product.rating}</p>
@@ -185,8 +192,9 @@ export default async function ProductPage({ params }: Props) {
             </div>
             <p className="mt-2 text-sm text-umber">Based on {product.reviewCount} reviews</p>
             <p className="mt-6 text-sm text-umber">
-              After your order is delivered we email you a link to review it.
+              Bought it? Tell other customers what you think.
             </p>
+            <ReviewForm productId={product.id} productName={product.name} />
           </div>
           <div>
             {reviews.length === 0 ? (

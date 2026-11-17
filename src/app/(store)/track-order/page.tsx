@@ -5,6 +5,7 @@ import Breadcrumbs from '@/components/store/Breadcrumbs'
 import Reveal from '@/components/store/Reveal'
 import TrackOrder from '@/components/store/TrackOrder'
 import { couriers, store } from '@/data/store'
+import { loadCatalog } from '@/lib/catalog/server'
 
 export const metadata: Metadata = {
   title: 'Track order',
@@ -30,7 +31,8 @@ const steps = [
   },
 ]
 
-export default function TrackOrderPage() {
+export default async function TrackOrderPage() {
+  await loadCatalog()
   return (
     <div className="page pt-8 lg:pt-12">
       <Breadcrumbs items={[{ label: 'Track order' }]} />
@@ -39,7 +41,7 @@ export default function TrackOrderPage() {
         Three steps and you will know where your candles are.
       </p>
 
-      <ol className="mt-10 grid gap-4 md:grid-cols-3">
+      <ol className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
         {steps.map((s, i) => (
           <Reveal
             as="li"
@@ -67,7 +69,7 @@ export default function TrackOrderPage() {
           Choose the courier named in your dispatch email. Each link opens the
           courier’s official tracking page in a new tab.
         </p>
-        <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {couriers.map(c => (
             <li key={c.name}>
               <a

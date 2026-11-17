@@ -22,7 +22,7 @@ export default async function PolicyPage({ params }: Props) {
   return (
     <div className="page pt-8 lg:pt-12">
       <Breadcrumbs items={[{ label: policy.title }]} />
-      <div className="mt-6 grid gap-10 lg:grid-cols-[14rem_1fr] lg:gap-20">
+      <div className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-[14rem_1fr] lg:gap-20">
         <nav aria-label="Policies" className="order-2 lg:order-1 lg:pt-3">
           <ul className="flex flex-col gap-2 border-t border-hairline pt-6 lg:border-0 lg:pt-0">
             {Object.entries(policies).map(([key, p]) => (

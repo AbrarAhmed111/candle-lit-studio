@@ -11,6 +11,7 @@ import Stars from '@/components/store/Stars'
 import { categories, getProduct, products, testimonials } from '@/data/products'
 import { campaign, store } from '@/data/store'
 import { formatDate, formatPKR, salePrice } from '@/lib/pricing'
+import { loadCatalog } from '@/lib/catalog/server'
 
 const fragrances = [
   'Desi gulab',
@@ -25,7 +26,8 @@ const fragrances = [
   'Saffron',
 ]
 
-export default function Home() {
+export default async function Home() {
+  await loadCatalog()
   const bestSellers = [...products].sort((a, b) => b.sold - a.sold).slice(0, 4)
   const newArrivals = [...products]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -113,7 +115,7 @@ export default function Home() {
       {/* Active campaign */}
       <section className="page pt-20 lg:pt-28">
         <Reveal>
-          <div className="relative grid overflow-hidden rounded-[2rem] bg-caramel text-ivory md:grid-cols-[1.3fr_1fr]">
+          <div className="relative grid grid-cols-1 overflow-hidden rounded-[2rem] bg-caramel text-ivory md:grid-cols-[1.3fr_1fr]">
             <div
               aria-hidden
               className="glow-breathe pointer-events-none absolute -right-24 -top-24 h-[34rem] w-[34rem] rounded-full"
@@ -172,7 +174,7 @@ export default function Home() {
 
       {/* Brand story, as a bento grid */}
       <section className="page pt-20 lg:pt-28">
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Reveal className="relative overflow-hidden rounded-[2rem] bg-soot p-8 text-ivory sm:p-12 lg:col-span-2 lg:p-14">
             <div
               aria-hidden
@@ -241,7 +243,7 @@ export default function Home() {
       </section>
 
       {/* Gift feature */}
-      <section className="page grid items-center gap-10 pt-20 md:grid-cols-2 lg:gap-20 lg:pt-28">
+      <section className="page grid grid-cols-1 items-center gap-10 pt-20 md:grid-cols-2 lg:gap-20 lg:pt-28">
         <Reveal>
           <div
             className="alcove aspect-square overflow-hidden"
@@ -275,7 +277,7 @@ export default function Home() {
         <Reveal>
           <h2 className="text-4xl lg:text-6xl">Loved in living rooms across Pakistan</h2>
         </Reveal>
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
+        <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
           {testimonials.map((t, i) => (
             <Reveal
               as="figure"
@@ -307,7 +309,7 @@ export default function Home() {
       {/* Newsletter */}
       <section className="page pt-20 lg:pt-28">
         <Reveal>
-          <div className="relative grid gap-8 overflow-hidden rounded-[2rem] bg-wax p-8 sm:p-12 md:grid-cols-2 md:items-center lg:p-16">
+          <div className="relative grid grid-cols-1 gap-8 overflow-hidden rounded-[2rem] bg-wax p-8 sm:p-12 md:grid-cols-2 md:items-center lg:p-16">
             <div>
               <h2 className="text-3xl lg:text-5xl">
                 Be first to the next pour

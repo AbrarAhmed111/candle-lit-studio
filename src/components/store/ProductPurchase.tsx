@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Heart, Minus, Plus, Share2 } from 'lucide-react'
 import ShareDialog from './ShareDialog'
@@ -33,6 +33,34 @@ export default function ProductPurchase({ product }: { product: Product }) {
   const available = Math.max(0, variant.stock - inCart)
   const price = salePrice(product, variant)
   const soldOut = variant.stock === 0
+
+  // Phones: once the buy buttons scroll away, a slim bar keeps them in reach
+  const buttonsRef = useRef<HTMLDivElement>(null)
+  const [pinned, setPinned] = useState(false)
+  useEffect(() => {
+    const el = buttonsRef.current
+    if (!el) return
+    // Pinned once the buttons have scrolled up past the top of the screen
+    const check = () => setPinned(el.getBoundingClientRect().bottom < 0)
+    check()
+    window.addEventListener('scroll', check, { passive: true })
+    return () => window.removeEventListener('scroll', check)
+  }, [])
+  useEffect(() => {
+    if (pinned) document.body.dataset.buybar = 'on'
+    else delete document.body.dataset.buybar
+    return () => {
+      delete document.body.dataset.buybar
+    }
+  }, [pinned])
+
+  const addAndGreet = () => {
+    const first = cartEmpty
+    if (!add()) return
+    // The drawer greets the first item only. After that a toast is enough.
+    if (first) dispatch(setDrawer(true))
+    else toast.success(`${product.name} added to cart`)
+  }
 
   const add = () => {
     if (available === 0) {
@@ -101,7 +129,7 @@ export default function ProductPurchase({ product }: { product: Product }) {
         )}
       </p>
 
-      <div className="mt-4 flex flex-wrap gap-3">
+      <div ref={buttonsRef} className="mt-4 flex flex-wrap gap-3">
         <div className="flex h-12 items-center rounded-xl border border-hairline">
           <button
             type="button"
@@ -128,13 +156,7 @@ export default function ProductPurchase({ product }: { product: Product }) {
         <button
           type="button"
           disabled={soldOut}
-          onClick={() => {
-            const first = cartEmpty
-            if (!add()) return
-            // The drawer greets the first item only. After that a toast is enough.
-            if (first) dispatch(setDrawer(true))
-            else toast.success(`${product.name} added to cart`)
-          }}
+          onClick={addAndGreet}
           className="btn-outline flex-1"
         >
           {soldOut ? 'Sold out' : 'Add to cart'}
@@ -171,6 +193,23 @@ export default function ProductPurchase({ product }: { product: Product }) {
         </button>
       </div>
       <ShareDialog product={product} open={sharing} onClose={() => setSharing(false)} />
+
+      {pinned && (
+        <div className="sheet-up fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-ivory/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-20px_rgba(46,31,23,0.5)] backdrop-blur lg:hidden">
+          <div className="page flex items-center gap-3 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-display text-lg leading-tight">{product.name}</p>
+              <p className="text-sm text-umber">
+                {product.variants.length > 1 && `${variant.label}, `}
+                <span className="font-medium text-espresso">{formatPKR(price)}</span>
+              </p>
+            </div>
+            <button type="button" disabled={soldOut} onClick={addAndGreet} className="btn-primary min-h-11 shrink-0 px-6 text-sm">
+              {soldOut ? 'Sold out' : 'Add to cart'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <ul className="mt-6 space-y-2 border-t border-hairline pt-6 text-[0.95rem] text-umber">
         <li>Cash on delivery, anywhere in Pakistan.</li>

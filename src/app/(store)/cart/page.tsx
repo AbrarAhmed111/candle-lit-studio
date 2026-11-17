@@ -4,17 +4,38 @@ import Link from 'next/link'
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import ProductPhoto from '@/components/store/ProductPhoto'
 import OrderSummary from '@/components/store/OrderSummary'
+import PopularPicks from '@/components/store/PopularPicks'
 import { computeTotals, formatPKR } from '@/lib/pricing'
 import { useAppDispatch, useAppSelector } from '@/store/store'
-import { removeItem, setQty } from '@/store/cart/CartSlice'
+import { setQty } from '@/store/cart/CartSlice'
+import { useCartRemove } from '@/components/store/useCartRemove'
 
 export default function CartPage() {
   const dispatch = useAppDispatch()
+  const remove = useCartRemove()
   const { items, couponCode, hydrated } = useAppSelector(s => s.cart)
   const totals = computeTotals(items, couponCode)
 
   if (!hydrated) {
-    return <div className="page py-24 text-center text-umber">Loading your cart…</div>
+    return (
+      <div className="page pt-8 lg:pt-12" role="status" aria-label="Loading your cart">
+        <div className="h-14 w-64 animate-pulse rounded-xl bg-wax/70" />
+        <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_24rem] lg:gap-16">
+          <div className="space-y-6">
+            {[0, 1].map(i => (
+              <div key={i} className="flex gap-4">
+                <div className="alcove h-28 w-24 shrink-0 animate-pulse bg-wax/70 sm:h-36 sm:w-28" />
+                <div className="flex-1 space-y-3 pt-2">
+                  <div className="h-6 w-2/3 animate-pulse rounded bg-wax/70" />
+                  <div className="h-4 w-1/3 animate-pulse rounded bg-wax/60" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="h-72 animate-pulse rounded-2xl bg-wax/60" />
+        </div>
+      </div>
+    )
   }
 
   if (totals.lines.length === 0) {
@@ -27,15 +48,23 @@ export default function CartPage() {
         <Link href="/shop" className="btn-primary mt-8">
           Shop all candles
         </Link>
+        <PopularPicks title="A good place to start" />
       </div>
     )
   }
 
+  const count = totals.lines.reduce((n, l) => n + l.qty, 0)
+
   return (
     <div className="page pt-8 lg:pt-12">
-      <h1 className="text-5xl lg:text-6xl">Your cart</h1>
+      <h1 className="text-5xl lg:text-6xl">
+        Your cart{' '}
+        <span className="align-middle font-sans text-lg text-umber">
+          ({count} {count === 1 ? 'candle' : 'candles'})
+        </span>
+      </h1>
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_24rem] lg:gap-16">
+      <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_24rem] lg:gap-16">
         <ul className="divide-y divide-hairline border-y border-hairline">
           {totals.lines.map(({ product, variant, qty, unitPrice, lineTotal, lineOriginal }) => (
             <li key={variant.id} className="flex gap-4 py-6 sm:gap-6">
@@ -104,7 +133,7 @@ export default function CartPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      dispatch(removeItem({ productId: product.id, variantId: variant.id }))
+                      remove({ productId: product.id, variantId: variant.id, qty, name: product.name })
                     }
                     className="flex min-h-11 items-center gap-1.5 text-sm text-umber hover:text-wine"
                   >

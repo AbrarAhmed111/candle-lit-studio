@@ -165,7 +165,7 @@ export default function Catalogue({ fixedCategory }: Props) {
   )
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[13rem_1fr] lg:gap-14">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[13rem_1fr] lg:gap-14">
       <aside
         className="no-scroll hidden lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto lg:pb-4"
         aria-label="Filters"

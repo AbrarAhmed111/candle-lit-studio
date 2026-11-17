@@ -1,11 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import toast from 'react-hot-toast'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { getAccount, getMyOrders, saveAccount } from '@/lib/actions/account'
 import { sampleOrders } from '@/data/store'
 import { localOrders } from '@/lib/orders'
 import type { Order } from '@/types'
 
-// Demo account, kept in this browser until Supabase auth is connected.
+// The signed-in customer's account. In demo mode a sample account is kept in
+// this browser; with Supabase connected it is read from and saved to the database.
 
 const KEY = 'cls_account'
 
@@ -55,14 +59,36 @@ const demo: Account = {
   prefs: { newsletter: true, whatsapp: true },
 }
 
+const empty: Account = {
+  profile: { name: '', email: '', phone: '' },
+  addresses: [],
+  prefs: { newsletter: false, whatsapp: true },
+}
+
 export function useAccount() {
-  const [account, setAccount] = useState<Account>(demo)
+  const [account, setAccount] = useState<Account>(isSupabaseConfigured ? empty : demo)
   const [ready, setReady] = useState(false)
+  const latest = useRef(account)
 
   useEffect(() => {
+    if (isSupabaseConfigured) {
+      getAccount().then(result => {
+        if (result.ok && result.data) {
+          latest.current = result.data
+          setAccount(result.data)
+        } else if (!result.ok) {
+          toast.error(result.error)
+        }
+        setReady(true)
+      })
+      return
+    }
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) ?? 'null')
-      if (saved) setAccount(saved)
+      if (saved) {
+        latest.current = saved
+        setAccount(saved)
+      }
     } catch {
       // keep the demo account
     }
@@ -70,15 +96,26 @@ export function useAccount() {
   }, [])
 
   const update = useCallback((apply: (a: Account) => Account) => {
-    setAccount(current => {
-      const next = apply(current)
-      try {
-        localStorage.setItem(KEY, JSON.stringify(next))
-      } catch {
-        // storage blocked: the change lasts until reload
-      }
-      return next
-    })
+    const next = apply(latest.current)
+    latest.current = next
+    setAccount(next)
+    if (isSupabaseConfigured) {
+      saveAccount(next).then(async result => {
+        if (!result.ok) return toast.error(result.error)
+        // New addresses get their database ids
+        const fresh = await getAccount()
+        if (fresh.ok && fresh.data) {
+          latest.current = fresh.data
+          setAccount(fresh.data)
+        }
+      })
+      return
+    }
+    try {
+      localStorage.setItem(KEY, JSON.stringify(next))
+    } catch {
+      // storage blocked: the change lasts until reload
+    }
   }, [])
 
   return { account, update, ready }
@@ -89,6 +126,10 @@ export function useMyOrders(phone: string) {
   const [orders, setOrders] = useState<Order[] | null>(null)
 
   useEffect(() => {
+    if (isSupabaseConfigured) {
+      getMyOrders().then(result => setOrders(result.ok ? result.data : []))
+      return
+    }
     // Orders placed in this browser plus the sample orders for this phone number
     const mine = [...localOrders(), ...sampleOrders.filter(o => o.customer.phone === phone)]
     setOrders(mine.sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()))

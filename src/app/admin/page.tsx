@@ -176,17 +176,22 @@ export default function AdminOverview() {
       </PageHeader>
 
       {/* To do: always current */}
-      <div className="mt-8 grid gap-3 sm:grid-cols-3">
-        <Link href="/admin/orders?status=Pending+Confirmation" className="group">
-          <Kpi
-            strong
-            label="Need confirmation"
-            value={String(waiting.length)}
-            hint={waiting.length ? 'Call or WhatsApp these customers' : 'Nothing waiting'}
-          />
-        </Link>
-        <Kpi label="To prepare and dispatch" value={String(toPack.length)} hint="Confirmed, processing or packed" />
+      <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi
+          strong
+          href="/admin/orders?status=Pending+Confirmation"
+          label="Need confirmation"
+          value={String(waiting.length)}
+          hint={waiting.length ? 'Call or WhatsApp these customers' : 'Nothing waiting'}
+        />
+        <Kpi
+          href="/admin/orders?status=To+dispatch"
+          label="To prepare and dispatch"
+          value={String(toPack.length)}
+          hint="Confirmed, processing or packed"
+        />
+        <Kpi
+          href="/admin/products?stock=low"
           label="Low or out of stock"
           value={String(lowStock.length)}
           hint={`Sizes with ${LOW_STOCK} or fewer left`}
@@ -203,7 +208,7 @@ export default function AdminOverview() {
         <Kpi label="Awaiting settlement" value={formatPKR(totals.awaitingSettlement)} hint="Courier still owes you" />
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.7fr_1fr]">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.7fr_1fr]">
         <section className={`${card} p-5 sm:p-6`} aria-labelledby="chart-h">
           <h2 id="chart-h" className="text-2xl">
             Order value
@@ -246,7 +251,7 @@ export default function AdminOverview() {
         </section>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.7fr_1fr]">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.7fr_1fr]">
         <section className={card} aria-labelledby="recent-orders-h">
           <div className="flex items-center justify-between p-5 pb-3 sm:px-6">
             <h2 id="recent-orders-h" className="text-2xl">
