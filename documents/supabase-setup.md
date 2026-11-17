@@ -8,8 +8,8 @@ What switches over:
 - **Storefront.** Products, categories, reviews, settings, couriers and the
   running campaign load from the database. The cache refreshes as soon as the
   dashboard saves a change.
-- **Checkout.** Orders go through `place_order()`, which checks prices, stock
-  and the coupon again before saving. Stock goes down when an order is placed
+- **Checkout.** Orders go through `place_order()`, which checks prices, stock,
+  the coupon and the Easypaisa payment details again before saving. Stock goes down when an order is placed
   and back up when it is cancelled.
 - **Confirmation and tracking.** The browser that placed an order opens it with
   a private link. Anyone else needs the order number and the phone number used
@@ -109,10 +109,37 @@ straight away without a confirmation email, turn off **Confirm email** under
 1. Run `npm run dev` and open http://localhost:3000. The demo banners are gone.
 2. Sign in with the Google account you set as administrator, then open
    `/admin`. Your name shows at the bottom of the sidebar.
-3. Place a test order on the storefront. It appears in **Dashboard > Orders**,
-   and the stock for that size goes down.
-4. Open **Dashboard > Products**, change a price and save. Reload the product
+3. In **Dashboard > Settings > Easypaisa account**, enter the account name and
+   number. Checkout stays closed until this is filled in.
+4. Place an order on the storefront. It appears in **Dashboard > Orders** and
+   **Dashboard > Payments**, and the stock for that size goes down.
+5. Open **Dashboard > Products**, change a price and save. Reload the product
    page: the new price shows.
+
+## Easypaisa payments
+
+Every order is paid by Easypaisa, in every city. There is no payment gateway:
+customers transfer the money themselves.
+
+1. Checkout shows the account name, the number and the exact amount, delivery
+   included.
+2. The customer sends the money, then enters the transaction ID and uploads a
+   screenshot. Screenshots go to the private `payment-proofs` bucket. Only the
+   team can open them.
+3. The order is saved with payment status **Pending Verification**. The
+   database refuses an order without a transaction ID and screenshot, and a
+   transaction ID already used by another order.
+4. The owner checks the payment in **Dashboard > Payments** or on the order,
+   then presses **Approve** (status **Paid**) or **Reject payment** with a
+   reason (status **Payment Rejected**). The customer is emailed either way.
+5. After a rejection the customer opens the Track order page, reads the reason
+   and sends a new transaction ID and screenshot. The owner is emailed.
+
+Payment status is separate from the order status. The database will not move
+an Easypaisa order to Confirmed or later until its payment is **Paid**.
+
+Delivery fees by city are in **Settings > Delivery fees by city**. Quetta starts at
+Rs. 500. Other cities use the standard fee.
 
 ## Notes
 
@@ -124,8 +151,6 @@ straight away without a confirmation email, turn off **Confirm email** under
   to `src/lib/supabase/database.types.ts`, if you want typed queries.
 - **Keys.** Only the anon key is used, and row level security protects every
   table. Never put the `service_role` key in a `NEXT_PUBLIC_` variable.
-- **WhatsApp.** Automatic WhatsApp messages are not sent yet. They need the
-  WhatsApp Business Cloud API.
 
 ## 5. Switch on email
 
@@ -150,26 +175,30 @@ CRON_SECRET=<any long random string>
 - **Database.** Run `npx supabase db push --remote` once more to add the email
   log, the unsubscribe links and the new templates.
 - **Check it.** Open Dashboard > Messages. The banner turns green when email is
-  set up. Open any email template and press **Send test**.
 
 What is sent:
 
 | When | Customer gets | Owner gets |
 | --- | --- | --- |
 | Order placed | Order received | New order alert, low-stock alerts |
+| Payment approved | Payment received | |
+| Payment rejected | The reason, and how to send new details | |
+| New payment details sent | | Payment to check |
 | Confirmed, preparing, packed | One email per step (preparing and packed start switched off) | |
 | Dispatched | Courier and tracking ID | |
 | Delivered | Delivered note, then a review request 3 days later | |
 | Cancelled | Cancellation note | Cancellation alert |
 | Contact form | | The message |
+| Team member added | The new team member gets an invite with a link to sign in | |
 | Newsletter sign-up | Welcome with the WELCOME10 code | |
 
 Switch any email on or off in Dashboard > Messages. Newsletter drafts have a
 **Send** button, and every newsletter carries an unsubscribe link. Each email
 is listed under **Sent emails** with its status and any error.
 
-The daily review request runs through Vercel Cron (`vercel.json`) at 11:00
-Pakistan time. Vercel sends `CRON_SECRET` with it automatically.
+The daily job runs through Vercel Cron (`vercel.json`) at 11:00 Pakistan time.
+It sends review requests (days set in Settings), cart reminders (hours set
+in Settings) and newsletters scheduled for that day. Vercel sends `CRON_SECRET` with it automatically.
 
 Supabase's own sign-in emails (confirm email, reset password) use Supabase's
 mail service, which is limited to a few per hour. To send them through the
@@ -187,3 +216,14 @@ enter the same SMTP details.
 | Server actions | `src/lib/actions/` (`auth`, `store`, `account`, `admin`) |
 | Google sign-in return | `src/app/auth/callback/route.ts` |
 | Session refresh and route protection | `src/middleware.ts`, `src/lib/supabase/middleware.ts` |
+
+
+## 6. Run the checks
+
+```bash
+npm test
+```
+
+runs 36 tests: pricing, emails, PDF invoices, and every database rule (checkout,
+Easypaisa payments, coupons, stock, cancellations, access rules) against an in-memory copy of the
+database built from `supabase/migrations`.
