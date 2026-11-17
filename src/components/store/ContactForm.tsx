@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react'
 import { sendContactMessage } from '@/lib/actions/store'
+import Honeypot from './Honeypot'
 
 export default function ContactForm() {
   const [values, setValues] = useState({ name: '', contact: '', message: '' })
@@ -9,6 +10,7 @@ export default function ContactForm() {
   const [sent, setSent] = useState(false)
 
   const [sending, setSending] = useState(false)
+  const [trap, setTrap] = useState('')
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -20,6 +22,8 @@ export default function ContactForm() {
       found.message = 'Tell us a little more, at least 10 characters.'
     setErrors(found)
     if (Object.keys(found).length > 0) return
+    // A bot filled the hidden field: show success and send nothing
+    if (trap) return setSent(true)
     setSending(true)
     const result = await sendContactMessage(values)
     setSending(false)
@@ -51,7 +55,7 @@ export default function ContactForm() {
   })
 
   return (
-    <form onSubmit={submit} noValidate className="space-y-5">
+    <form onSubmit={submit} noValidate className="relative space-y-5">
       <div>
         <label htmlFor="name" className="field-label">
           Your name
@@ -73,6 +77,7 @@ export default function ContactForm() {
         <textarea {...bind('message')} rows={5} className="field py-3" />
         {errors.message && <p className="field-error">{errors.message}</p>}
       </div>
+      <Honeypot value={trap} onChange={setTrap} />
       <button type="submit" disabled={sending} className="btn-primary">
         {sending ? 'Sending…' : 'Send message'}
       </button>

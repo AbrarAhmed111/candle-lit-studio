@@ -126,6 +126,10 @@ export const toCoupon = (c: Row): AdminCoupon => ({
   active: c.active,
   used: c.used,
   maxUses: opt(c.max_uses),
+  firstOrderOnly: c.first_order_only ?? false,
+  perCustomerLimit: opt(c.per_customer_limit),
+  productIds: c.product_ids ?? [],
+  categories: c.category_slugs ?? [],
 })
 export const fromCoupon = (c: AdminCoupon) => ({
   code: c.code.toUpperCase(),
@@ -138,6 +142,10 @@ export const fromCoupon = (c: AdminCoupon) => ({
   active: c.active,
   used: c.used,
   max_uses: c.maxUses ?? null,
+  first_order_only: !!c.firstOrderOnly,
+  per_customer_limit: c.perCustomerLimit ?? null,
+  product_ids: c.productIds ?? [],
+  category_slugs: c.categories ?? [],
 })
 
 export const toCampaign = (c: Row): Campaign => ({
@@ -218,6 +226,8 @@ export const toDraft = (d: Row): NewsletterDraft => ({
   body: d.body,
   segment: d.segment,
   savedAt: d.saved_at,
+  sentAt: opt(d.sent_at),
+  sentCount: d.sent_count ?? 0,
 })
 export const fromDraft = (d: NewsletterDraft) => ({
   id: d.id,

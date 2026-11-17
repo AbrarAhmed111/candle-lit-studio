@@ -30,7 +30,11 @@ export default function OrderSummary({
     if (isSupabaseConfigured) {
       // Codes are checked on the server: the list is never sent to the browser
       setChecking(true)
-      const result = await validateCoupon(code, totals.subtotal)
+      const result = await validateCoupon(
+        code,
+        totals.subtotal,
+        totals.lines.map(l => ({ variantId: l.variant.id, qty: l.qty })),
+      )
       setChecking(false)
       if (!result.ok) return setError(result.error)
       registerCoupon(result.data)
@@ -39,7 +43,7 @@ export default function OrderSummary({
       setError(null)
       return
     }
-    const check = checkCoupon(code, totals.subtotal)
+    const check = checkCoupon(code, totals.subtotal, totals.lines)
     if (!check.ok) return setError(check.message)
     dispatch(setCoupon(check.coupon.code))
     setCode('')

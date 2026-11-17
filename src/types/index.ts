@@ -80,6 +80,13 @@ export type Coupon = {
   maxDiscount?: number
   expiresAt?: string
   description: string
+  /** Only for a customer's first order */
+  firstOrderOnly?: boolean
+  /** How many times one customer may use it */
+  perCustomerLimit?: number
+  /** Limits the discount to these products or categories. Empty means everything. */
+  productIds?: string[]
+  categories?: string[]
 }
 
 export type OrderStatus =

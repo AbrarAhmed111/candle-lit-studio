@@ -17,7 +17,8 @@ export default function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
   const [googling, startGoogle] = useTransition()
   const router = useRouter()
   const params = useSearchParams()
-  const returnUrl = params.get('returnUrl') ?? '/account'
+  const askedReturn = params.get('returnUrl')
+  const returnUrl = askedReturn ?? '/account'
   const isSignup = mode === 'signup'
   const callbackFailed = params.get('error') === 'auth'
 
@@ -28,7 +29,7 @@ export default function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
         router.push('/account')
         return
       }
-      const result = await signInWithGoogle(returnUrl)
+      const result = await signInWithGoogle(askedReturn ?? undefined)
       // On success the browser is already on its way to Google
       if (result && !result.ok) setFailure(result.error)
     })
@@ -63,6 +64,12 @@ export default function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
       const result = await signInWithEmail(values.email, values.password)
       setBusy(false)
       if (!result.ok) return setFailure(result.error)
+      // Team members go to the dashboard unless a page asked for them
+      if (!askedReturn && result.data.staff) {
+        router.replace('/admin')
+        router.refresh()
+        return
+      }
     }
     router.replace(returnUrl.startsWith('/') ? returnUrl : '/account')
     router.refresh()
@@ -136,7 +143,7 @@ export default function AuthForm({ mode }: { mode: 'signin' | 'signup' }) {
                 Password
               </label>
               {!isSignup && (
-                <Link href="/contact" className="link text-sm">
+                <Link href="/forgot-password" className="link text-sm">
                   Forgot password?
                 </Link>
               )}

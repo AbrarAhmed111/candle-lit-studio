@@ -41,3 +41,17 @@ export function createPublicClient() {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 }
+
+/**
+ * Full-access client for server jobs with no visitor session: sending
+ * emails, the review-request job, unsubscribe links. Needs
+ * SUPABASE_SERVICE_ROLE_KEY, which must never reach the browser.
+ * Returns null when the key is not set.
+ */
+export function createServiceClient() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || process.env.SUPABASE_SECRET_KEY?.trim()
+  if (!supabaseUrl || !key) return null
+  return createPlainClient(supabaseUrl, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}

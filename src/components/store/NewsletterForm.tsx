@@ -3,14 +3,17 @@
 import { FormEvent, useState } from 'react'
 import clsx from 'clsx'
 import { subscribeToNewsletter } from '@/lib/actions/store'
+import Honeypot from './Honeypot'
 
 export default function NewsletterForm({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
   const [email, setEmail] = useState('')
   const [state, setState] = useState<'idle' | 'error' | 'done'>('idle')
+  const [trap, setTrap] = useState('')
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setState('error')
+    if (trap) return setState('done')
     const result = await subscribeToNewsletter(email, 'Footer')
     if (!result.ok) return setState('error')
     setState('done')
@@ -25,7 +28,8 @@ export default function NewsletterForm({ tone = 'light' }: { tone?: 'light' | 'd
   }
 
   return (
-    <form onSubmit={submit} noValidate>
+    <form onSubmit={submit} noValidate className="relative">
+      <Honeypot value={trap} onChange={setTrap} />
       <div className="flex gap-2">
         <input
           type="email"

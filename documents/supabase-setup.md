@@ -116,16 +116,65 @@ straight away without a confirmation email, turn off **Confirm email** under
 
 ## Notes
 
-- **Admin host in production.** `src/middleware.ts` serves `/admin` only on an
-  `admin.` subdomain in production. Add `admin.<your domain>` to Vercel and to
-  the Supabase redirect URLs. On localhost both run on one host.
+- **Admin address.** The dashboard opens at `/admin` on the store's own address,
+  for signed-in team members only. Optionally, point `admin.<your domain>` at
+  the same Vercel project: that host then shows only the dashboard. If you do,
+  add its `/auth/callback` to the Supabase redirect URLs.
 - **Database types.** After linking, `npm run db:types` writes generated types
   to `src/lib/supabase/database.types.ts`, if you want typed queries.
 - **Keys.** Only the anon key is used, and row level security protects every
   table. Never put the `service_role` key in a `NEXT_PUBLIC_` variable.
-- **Not built yet.** Email and WhatsApp sending. Templates and newsletter drafts
-  are saved, but no message is sent until an email service and WhatsApp
-  Business are connected.
+- **WhatsApp.** Automatic WhatsApp messages are not sent yet. They need the
+  WhatsApp Business Cloud API.
+
+## 5. Switch on email
+
+Emails go out through any SMTP account (nodemailer). Add these to `.env` and
+to Vercel:
+
+```
+SUPABASE_SERVICE_ROLE_KEY=<Project Settings > API Keys > service_role or secret key>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=you@gmail.com
+SMTP_PASS=<app password>
+SMTP_FROM="Candle Lit Studio <you@gmail.com>"
+CRON_SECRET=<any long random string>
+```
+
+- **Gmail.** Turn on 2-step verification, then create an app password at
+  https://myaccount.google.com/apppasswords and use it as `SMTP_PASS`. Gmail
+  allows about 500 emails a day. For more, use a provider such as Brevo, Zoho
+  or Amazon SES with their SMTP details.
+- **Service role key.** Server only. Never give it a `NEXT_PUBLIC_` name.
+- **Database.** Run `npx supabase db push --remote` once more to add the email
+  log, the unsubscribe links and the new templates.
+- **Check it.** Open Dashboard > Messages. The banner turns green when email is
+  set up. Open any email template and press **Send test**.
+
+What is sent:
+
+| When | Customer gets | Owner gets |
+| --- | --- | --- |
+| Order placed | Order received | New order alert, low-stock alerts |
+| Confirmed, preparing, packed | One email per step (preparing and packed start switched off) | |
+| Dispatched | Courier and tracking ID | |
+| Delivered | Delivered note, then a review request 3 days later | |
+| Cancelled | Cancellation note | Cancellation alert |
+| Contact form | | The message |
+| Newsletter sign-up | Welcome with the WELCOME10 code | |
+
+Switch any email on or off in Dashboard > Messages. Newsletter drafts have a
+**Send** button, and every newsletter carries an unsubscribe link. Each email
+is listed under **Sent emails** with its status and any error.
+
+The daily review request runs through Vercel Cron (`vercel.json`) at 11:00
+Pakistan time. Vercel sends `CRON_SECRET` with it automatically.
+
+Supabase's own sign-in emails (confirm email, reset password) use Supabase's
+mail service, which is limited to a few per hour. To send them through the
+same account, open Authentication > Emails > SMTP Settings in Supabase and
+enter the same SMTP details.
 
 ## Where things live
 

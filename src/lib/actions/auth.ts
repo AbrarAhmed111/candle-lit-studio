@@ -22,7 +22,8 @@ export async function signInWithGoogle(returnUrl?: string): Promise<ActionResult
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${await origin()}/auth/callback?next=${encodeURIComponent(safePath(returnUrl))}`,
+      // No return page: the callback picks the dashboard for staff, the account for customers
+      redirectTo: `${await origin()}/auth/callback${returnUrl ? `?next=${encodeURIComponent(safePath(returnUrl))}` : ''}`,
       queryParams: { prompt: 'select_account' },
     },
   })
@@ -30,12 +31,13 @@ export async function signInWithGoogle(returnUrl?: string): Promise<ActionResult
   redirect(data.url)
 }
 
-export async function signInWithEmail(email: string, password: string): Promise<ActionResult> {
+export async function signInWithEmail(email: string, password: string): Promise<ActionResult<{ staff: boolean }>> {
   if (!isSupabaseConfigured) return fail(NOT_CONNECTED)
   const supabase = await createClient()
   const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
   if (error) return fail('That email and password do not match. Try again, or continue with Google.')
-  return ok(null)
+  const { data: staff } = await supabase.rpc('is_staff')
+  return ok({ staff: !!staff })
 }
 
 export async function signUpWithEmail(name: string, email: string, password: string): Promise<ActionResult<{ confirm: boolean }>> {
@@ -79,4 +81,29 @@ export async function getViewer(): Promise<Viewer> {
     name: (user.user_metadata?.full_name as string) ?? (user.user_metadata?.name as string) ?? '',
     staff: !!staff,
   }
+}
+
+/** Emails a reset link. Always reports success so nobody can test which emails have accounts. */
+export async function requestPasswordReset(email: string): Promise<ActionResult> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return fail('Enter an email address like name@example.com.')
+  if (!isSupabaseConfigured) return ok(null)
+  const supabase = await createClient()
+  await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: `${await origin()}/auth/callback?next=/reset-password`,
+  })
+  return ok(null)
+}
+
+/** Sets a new password for the visitor who opened the reset link */
+export async function updatePassword(password: string): Promise<ActionResult> {
+  if (password.length < 8) return fail('Use at least 8 characters.')
+  if (!isSupabaseConfigured) return fail(NOT_CONNECTED)
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return fail('This reset link has expired. Ask for a new one.')
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) return fail(/different from the old/i.test(error.message) ? 'Choose a password you have not used before.' : error.message)
+  return ok(null)
 }

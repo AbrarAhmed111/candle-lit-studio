@@ -8,16 +8,13 @@ import { useAdmin, type MessageTemplate } from '@/components/admin/AdminData'
 import { card, done, PageHeader } from '@/components/admin/ui'
 import Modal from '@/components/store/Modal'
 import ContactInbox from '@/components/admin/ContactInbox'
+import EmailLog, { EmailStatus, useEmailOverview } from '@/components/admin/EmailLog'
+import { placeholders } from '@/lib/email/render'
+import { adminSendTestEmail } from '@/lib/actions/admin'
+import toast from 'react-hot-toast'
 
 // Placeholders the owner can use, with the sample shown in the preview
-const variables: [string, string][] = [
-  ['customer_name', 'Sarah'],
-  ['order_number', 'CND-1024'],
-  ['order_total', 'Rs. 3,503'],
-  ['courier', 'TCS'],
-  ['tracking_id', '779812345601'],
-  ['tracking_url', 'https://www.tcsexpress.com/track/'],
-]
+const variables = placeholders
 
 const fill = (text: string, storeName: string) =>
   [...variables, ['store_name', storeName] as [string, string]].reduce(
@@ -32,6 +29,7 @@ const channels = [
 
 export default function AdminMessagesPage() {
   const { templates, settings, setShop } = useAdmin()
+  const email = useEmailOverview()
   const [channel, setChannel] = useState<MessageTemplate['channel']>('email')
   const [editing, setEditing] = useState<string | null>(null)
   const shown = templates.filter(t => t.channel === channel)
@@ -48,10 +46,7 @@ export default function AdminMessagesPage() {
       <ContactInbox />
 
       <h2 className="mt-14 text-3xl">Automatic messages</h2>
-      <p className="mt-6 rounded-2xl bg-wax/60 px-4 py-3 text-[0.95rem] text-umber">
-        Nothing is sent yet. Sending starts once the email service and WhatsApp Business are connected. You can
-        prepare the wording now.
-      </p>
+      <EmailStatus live={email.live} overview={email.overview} />
 
       <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Channel">
         {channels.map(({ key, label, icon: Icon }) => (
@@ -113,12 +108,16 @@ export default function AdminMessagesPage() {
       >
         {current && <TemplateForm key={current.id} template={current} onDone={() => setEditing(null)} />}
       </Modal>
+
+      {email.live && <EmailLog overview={email.overview} reload={email.reload} />}
     </>
   )
 }
 
 function TemplateForm({ template, onDone }: { template: MessageTemplate; onDone: () => void }) {
-  const { settings, setShop } = useAdmin()
+  const { settings, setShop, live } = useAdmin()
+  const [testTo, setTestTo] = useState(settings.email)
+  const [testing, setTesting] = useState(false)
   const [subject, setSubject] = useState(template.subject ?? '')
   const [body, setBody] = useState(template.body)
   const [error, setError] = useState('')
@@ -207,6 +206,30 @@ function TemplateForm({ template, onDone }: { template: MessageTemplate; onDone:
         <p role="alert" className="field-error mt-4">
           {error}
         </p>
+      )}
+      {isEmail && live && (
+        <div className="mt-6 flex flex-wrap items-end gap-2 rounded-2xl border border-hairline p-4">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="tpl-test" className="field-label">
+              Send a test to
+            </label>
+            <input id="tpl-test" type="email" value={testTo} onChange={e => setTestTo(e.target.value)} className="field" />
+          </div>
+          <button
+            type="button"
+            disabled={testing}
+            onClick={async () => {
+              setTesting(true)
+              const result = await adminSendTestEmail(template.id, { subject, body }, testTo)
+              setTesting(false)
+              if (result.ok) toast.success(`Test sent to ${testTo}`)
+              else toast.error(result.error)
+            }}
+            className="btn-outline shrink-0"
+          >
+            {testing ? 'Sending…' : 'Send test'}
+          </button>
+        </div>
       )}
       <div className="mt-6 flex flex-wrap gap-2">
         <button type="submit" className="btn-primary">

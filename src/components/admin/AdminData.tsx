@@ -97,6 +97,9 @@ export type NewsletterDraft = {
   body: string
   segment: string
   savedAt: string
+  /** Set once the newsletter has gone out */
+  sentAt?: string
+  sentCount?: number
 }
 
 /** Messages sent through the storefront contact form */

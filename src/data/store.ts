@@ -82,7 +82,9 @@ export const coupons: Coupon[] = [
     type: 'percent',
     value: 10,
     maxDiscount: 500,
-    description: '10% off, up to Rs. 500',
+    description: '10% off your first order, up to Rs. 500',
+    firstOrderOnly: true,
+    perCustomerLimit: 1,
   },
   {
     code: 'FREESHIPPING',

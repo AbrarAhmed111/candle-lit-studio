@@ -14,6 +14,7 @@ export const friendly = (message: string | undefined) => {
   if (m.startsWith('COUPON:')) return m.slice(7).trim()
   if (m.startsWith('INVALID:')) return 'Some details are missing or not valid. Check the form and try again.'
   if (m.startsWith('SIGN_IN')) return 'Please sign in first.'
+  if (m.startsWith('RATE_LIMIT')) return 'Too many tries in a short time. Please wait a few minutes and try again.'
   if (m.startsWith('DUPLICATE')) return 'You have already reviewed this candle. Thank you!'
   if (m.startsWith('FORBIDDEN') || /row-level security|permission denied/i.test(m))
     return 'Your account is not allowed to do that. Ask the store administrator for access.'

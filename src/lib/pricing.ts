@@ -54,7 +54,17 @@ export type CouponCheck =
   | { ok: true; coupon: Coupon }
   | { ok: false; message: string }
 
-export const checkCoupon = (code: string, subtotal: number): CouponCheck => {
+/** The part of the cart a coupon covers: everything, or only its products and categories */
+export const couponBase = (coupon: Coupon, lines: CartLine[]) => {
+  const products = coupon.productIds ?? []
+  const categories = coupon.categories ?? []
+  if (!products.length && !categories.length) return lines.reduce((s, l) => s + l.lineTotal, 0)
+  return lines
+    .filter(l => products.includes(l.product.id) || l.product.categories.some(c => categories.includes(c)))
+    .reduce((s, l) => s + l.lineTotal, 0)
+}
+
+export const checkCoupon = (code: string, subtotal: number, lines?: CartLine[]): CouponCheck => {
   const coupon = coupons.find(c => c.code === code.trim().toUpperCase())
   if (!coupon) return { ok: false, message: 'That code does not exist. Check the spelling and try again.' }
   if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
@@ -65,6 +75,9 @@ export const checkCoupon = (code: string, subtotal: number): CouponCheck => {
       ok: false,
       message: `${coupon.code} needs a cart of ${formatPKR(coupon.minCart)} or more. Add ${formatPKR(coupon.minCart - subtotal)} to use it.`,
     }
+  }
+  if (lines && couponBase(coupon, lines) === 0) {
+    return { ok: false, message: `${coupon.code} does not apply to the candles in your cart.` }
   }
   return { ok: true, coupon }
 }
@@ -78,17 +91,18 @@ export const computeTotals = (items: CartItem[], couponCode?: string | null) => 
   let coupon: Coupon | null = null
   let couponError: string | null = null
   if (couponCode) {
-    const check = checkCoupon(couponCode, subtotal)
+    const check = checkCoupon(couponCode, subtotal, lines)
     if (check.ok) coupon = check.coupon
     else couponError = check.message
   }
 
   let couponDiscount = 0
+  const base = coupon ? couponBase(coupon, lines) : 0
   if (coupon?.type === 'percent') {
-    couponDiscount = Math.round((subtotal * coupon.value) / 100)
+    couponDiscount = Math.round((base * coupon.value) / 100)
     if (coupon.maxDiscount) couponDiscount = Math.min(couponDiscount, coupon.maxDiscount)
   } else if (coupon?.type === 'fixed') {
-    couponDiscount = Math.min(coupon.value, subtotal)
+    couponDiscount = Math.min(coupon.value, base)
   }
 
   // A threshold of 0 switches free delivery off

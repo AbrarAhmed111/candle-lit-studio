@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from '@/lib/actions/auth'
 import { useEffect, useRef } from 'react'
-import { Heart, LayoutGrid, LogOut, MapPin, Package, UserRound } from 'lucide-react'
+import { Heart, LayoutDashboard, LayoutGrid, LogOut, MapPin, Package, UserRound } from 'lucide-react'
 import clsx from 'clsx'
 
 const items = [
@@ -15,7 +15,7 @@ const items = [
   { href: '/account/profile', label: 'Profile and preferences', icon: UserRound },
 ]
 
-export default function AccountNav() {
+export default function AccountNav({ staff = false }: { staff?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const active = (href: string) => (href === '/account' ? pathname === href : pathname.startsWith(href))
@@ -51,6 +51,15 @@ export default function AccountNav() {
           {label}
         </Link>
       ))}
+      {staff && (
+        <Link
+          href="/admin"
+          className="flex min-h-11 shrink-0 items-center gap-3 rounded-full bg-ember px-4 text-[0.95rem] font-medium text-soot transition-colors hover:bg-caramel hover:text-ivory lg:mt-3 lg:rounded-xl"
+        >
+          <LayoutDashboard size={17} />
+          Store dashboard
+        </Link>
+      )}
       <button
         type="button"
         onClick={async () => {

@@ -1,67 +1,34 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
+// Pages that must work on every host, including an admin subdomain
+const AUTH_PAGES = ['/signin', '/signup', '/auth/callback']
+
 export async function middleware(request: NextRequest) {
-	const { pathname, searchParams } = request.nextUrl
+	const { pathname } = request.nextUrl
 	const hostname = request.headers.get('host') || ''
-	// Check if request is from admin subdomain or preview
-	const isVercelPreview = hostname.includes('.vercel.app')
-	const previewAdminMode = searchParams.get('admin') === 'true'
-	const isAdminSubdomain = hostname.startsWith('admin.') || (isVercelPreview && previewAdminMode)
-	// Local development serves the store and the admin from one host
-	const isLocal = /^(localhost|127\.0\.0\.1)(:|$)/.test(hostname)
-	if (isLocal) return await updateSession(request)
 
-	// Define auth pages that should work on admin subdomain
-	const authPages = ['/signin', '/signup', '/auth/callback']
-	const isAuthPage = authPages.some(page => pathname.startsWith(page))
-
-	// Handle admin subdomain routing
-	if (isAdminSubdomain) {
-		// Allow auth pages on admin subdomain
-		if (isAuthPage) {
-			return await updateSession(request)
-		}
-
-		// Redirect dashboard routes to admin-panel when on admin subdomain
-		if (pathname.startsWith('/dashboard')) {
+	// The dashboard opens on the store's own address (localhost, *.vercel.app,
+	// your domain). updateSession() lets in only signed-in team members.
+	//
+	// If you later point admin.<your domain> at this app, that host shows only
+	// the dashboard: any other page there goes to /admin.
+	if (hostname.startsWith('admin.')) {
+		const isAuthPage = AUTH_PAGES.some(page => pathname.startsWith(page))
+		if (!isAuthPage && !pathname.startsWith('/admin')) {
 			return NextResponse.redirect(new URL('/admin', request.url))
-		}
-
-		// Only allow admin routes on admin subdomain
-		if (
-			!pathname.startsWith('/admin-panel') &&
-			!pathname.startsWith('/admin') &&
-			!pathname.startsWith('/crm')
-		) {
-			return NextResponse.redirect(new URL('/admin', request.url))
-		}
-	} else {
-		// Not on admin subdomain - block direct access to admin routes
-		if (
-			pathname.startsWith('/admin-panel') ||
-			pathname.startsWith('/admin') ||
-			pathname.startsWith('/crm')
-		) {
-			return NextResponse.redirect(new URL('/', request.url))
 		}
 	}
 
-	// Always update Supabase session
 	return await updateSession(request)
 }
 
 export const config = {
 	matcher: [
 		/*
-		 * Match all request paths except for the ones starting with:
-		 * - _next/static (static files)
-		 * - _next/image (image optimization files)
-		 * - favicon.ico (favicon file)
-		 * - api/auth (auth API routes)
+		 * Every path except Next.js assets and plain files such as images,
+		 * icons and the Google verification page, which need no session.
 		 */
-		'/((?!_next/static|_next/image|favicon.ico|api/auth|public).*)'
+		'/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|html|txt|xml)$).*)'
 	]
 }
-
-

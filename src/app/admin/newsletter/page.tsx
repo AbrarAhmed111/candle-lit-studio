@@ -4,12 +4,14 @@ import { FormEvent, useState } from 'react'
 import { Download, Search } from 'lucide-react'
 import clsx from 'clsx'
 import { useAdmin } from '@/components/admin/AdminData'
+import { adminSendNewsletter } from '@/lib/actions/admin'
+import toast from 'react-hot-toast'
 import { card, dateTime, done, downloadCsv, Empty, input, Kpi, PageHeader, shortDate, td, th } from '@/components/admin/ui'
 
 const DAY = 86_400_000
 
 export default function AdminNewsletterPage() {
-  const { subscribers, drafts, customers, setShop } = useAdmin()
+  const { subscribers, drafts, customers, setShop, live } = useAdmin()
   const [query, setQuery] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -20,15 +22,32 @@ export default function AdminNewsletterPage() {
   const buyerEmails = (test: (c: (typeof customers)[number]) => boolean) =>
     new Set(customers.filter(test).flatMap(c => (c.email ? [c.email] : [])))
 
-  // Who each group reaches. Only people still subscribed are counted.
-  const segments: Record<string, number> = {
-    'All subscribers': active.length,
-    'Have ordered before': active.filter(s => buyerEmails(() => true).has(s.email)).length,
-    'Ordered more than once': active.filter(s => buyerEmails(c => c.orders.length > 1).has(s.email)).length,
-    'No order in the last 30 days': active.filter(
-      s => !buyerEmails(c => Date.now() - new Date(c.lastOrderAt).getTime() < 30 * DAY).has(s.email),
-    ).length,
-    'Never ordered': active.filter(s => !buyerEmails(() => true).has(s.email)).length,
+  // Who each group reaches. Only people still subscribed are included.
+  const audiences: Record<string, string[]> = {
+    'All subscribers': active.map(s => s.email),
+    'Have ordered before': active.filter(s => buyerEmails(() => true).has(s.email)).map(s => s.email),
+    'Ordered more than once': active.filter(s => buyerEmails(c => c.orders.length > 1).has(s.email)).map(s => s.email),
+    'No order in the last 30 days': active
+      .filter(s => !buyerEmails(c => Date.now() - new Date(c.lastOrderAt).getTime() < 30 * DAY).has(s.email))
+      .map(s => s.email),
+    'Never ordered': active.filter(s => !buyerEmails(() => true).has(s.email)).map(s => s.email),
+  }
+  const segments: Record<string, number> = Object.fromEntries(
+    Object.entries(audiences).map(([name, list]) => [name, list.length]),
+  )
+  const [sending, setSending] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<string | null>(null)
+
+  const send = async (draft: (typeof drafts)[number]) => {
+    setConfirming(null)
+    setSending(draft.id)
+    const result = await adminSendNewsletter(draft.id, audiences[draft.segment] ?? [])
+    setSending(null)
+    if (!result.ok) return toast.error(result.error)
+    setShop('drafts', list =>
+      list.map(x => (x.id === draft.id ? { ...x, sentAt: new Date().toISOString(), sentCount: result.data.sent } : x)),
+    )
+    done(`Newsletter sent: ${draft.subject}, to ${result.data.sent}${result.data.failed ? `, ${result.data.failed} failed` : ''}`)
   }
 
   const q = query.trim().toLowerCase()
@@ -185,7 +204,9 @@ export default function AdminNewsletterPage() {
               Save draft
             </button>
             <p className="mt-3 text-sm text-umber">
-              Sending starts once the email service is connected. Every email will carry an unsubscribe link.
+              {live
+                ? 'Save it, then press Send on the draft. Every email carries its own unsubscribe link.'
+                : 'Sending works once Supabase and email are connected. Every email will carry an unsubscribe link.'}
             </p>
           </form>
 
@@ -200,9 +221,21 @@ export default function AdminNewsletterPage() {
                     <div className="min-w-0">
                       <p className="font-medium">{d.subject}</p>
                       <p className="text-sm text-umber">
-                        To {d.segment.toLowerCase()} ({segments[d.segment] ?? 0}). Saved {dateTime(d.savedAt)}
+                        {d.sentAt
+                          ? `Sent to ${d.sentCount ?? 0} on ${dateTime(d.sentAt)}`
+                          : `To ${d.segment.toLowerCase()} (${segments[d.segment] ?? 0}). Saved ${dateTime(d.savedAt)}`}
                       </p>
                     </div>
+                    {live && !d.sentAt && (
+                      <button
+                        type="button"
+                        disabled={sending !== null || !segments[d.segment]}
+                        onClick={() => setConfirming(d.id)}
+                        className="btn-primary min-h-10 shrink-0 px-4 text-sm"
+                      >
+                        {sending === d.id ? 'Sending…' : 'Send'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -215,6 +248,19 @@ export default function AdminNewsletterPage() {
                     </button>
                   </div>
                   <p className="mt-2 line-clamp-3 whitespace-pre-line text-umber">{d.body}</p>
+                  {confirming === d.id && (
+                    <div role="alertdialog" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-wax/60 p-3 text-sm">
+                      <span className="flex-1">
+                        Send to {segments[d.segment] ?? 0} {d.segment.toLowerCase()} now? This cannot be undone.
+                      </span>
+                      <button type="button" onClick={() => send(d)} className="btn-primary min-h-10 px-4 text-sm">
+                        Yes, send
+                      </button>
+                      <button type="button" onClick={() => setConfirming(null)} className="btn-outline min-h-10 px-4 text-sm">
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

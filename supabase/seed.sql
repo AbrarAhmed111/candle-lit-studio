@@ -60,10 +60,10 @@ insert into public.variants (id, product_id, label, sku, price, stock, weight, b
   ('p13-220', 'p13', '220 g', 'CLS-BONFIRE-220', 1950, 5, '220 g', '40 hours', 0)
 on conflict (id) do nothing;
 
-insert into public.coupons (code, type, value, min_cart, max_discount, expires_at, description, active, used, max_uses) values
-  ('WELCOME10', 'percent', 10, null, 500, null, '10% off, up to Rs. 500', true, 38, null),
-  ('FREESHIPPING', 'free_shipping', 0, 3000, null, null, 'Free delivery on orders over Rs. 3,000', true, 21, null),
-  ('EID20', 'percent', 20, null, null, '2026-06-30', '20% off for Eid', true, 64, null)
+insert into public.coupons (code, type, value, min_cart, max_discount, expires_at, description, active, used, max_uses, first_order_only, per_customer_limit, product_ids, category_slugs) values
+  ('WELCOME10', 'percent', 10, null, 500, null, '10% off your first order, up to Rs. 500', true, 38, null, true, 1, '{}'::text[], '{}'::text[]),
+  ('FREESHIPPING', 'free_shipping', 0, 3000, null, null, 'Free delivery on orders over Rs. 3,000', true, 21, null, false, null, '{}'::text[], '{}'::text[]),
+  ('EID20', 'percent', 20, null, null, '2026-06-30', '20% off for Eid', true, 64, null, false, null, '{}'::text[], '{}'::text[])
 on conflict (code) do nothing;
 
 insert into public.campaigns (id, name, description, starts_at, ends_at, discount_percent, categories, active) values
@@ -96,10 +96,55 @@ Tracking ID: {{tracking_id}}
 Track it here: {{tracking_url}}
 
 Please keep {{order_total}} ready in cash for the rider.', true),
-  ('e-delivered', 'email', 'Customer', 'Delivered, ask for a review', 'Three days after an order is delivered', 'How are your candles, {{customer_name}}?', 'Your order {{order_number}} has been delivered. We would love to hear what you think. A short review helps other customers choose.', true),
+  ('e-delivered', 'email', 'Customer', 'Review request', 'Three days after an order is delivered', 'How are your candles, {{customer_name}}?', 'Your order {{order_number}} has been delivered. We would love to hear what you think. A short review helps other customers choose.', true),
   ('e-cancel', 'email', 'Customer', 'Order cancelled', 'When an order is cancelled', 'Order {{order_number}} has been cancelled', 'Assalam o alaikum {{customer_name}},
 
 Order {{order_number}} has been cancelled. Nothing was charged. If this was a mistake, reply to this email and we will help.', true),
+  ('e-confirmed', 'email', 'Customer', 'Order confirmed', 'When you confirm an order', 'Order {{order_number}} is confirmed', 'Assalam o alaikum {{customer_name}},
+
+Thank you for confirming. We are preparing order {{order_number}} now.
+
+{{order_details}}
+
+Delivering to: {{delivery_address}}
+Total to pay on delivery: {{order_total}}.', true),
+  ('e-processing', 'email', 'Customer', 'Order being prepared', 'When you start preparing an order', 'We are pouring your order {{order_number}}', 'Assalam o alaikum {{customer_name}},
+
+Your candles are being prepared in our studio. We will let you know as soon as they are on their way.', false),
+  ('e-packed', 'email', 'Customer', 'Order packed', 'When you mark an order as packed', 'Order {{order_number}} is packed', 'Assalam o alaikum {{customer_name}},
+
+Order {{order_number}} is packed and waiting for the courier.', false),
+  ('e-order-delivered', 'email', 'Customer', 'Order delivered', 'When you mark an order as delivered', 'Order {{order_number}} has been delivered', 'Assalam o alaikum {{customer_name}},
+
+Order {{order_number}} has been delivered. We hope the candles make your home feel warm.
+
+Thank you for shopping with {{store_name}}.', true),
+  ('e-welcome', 'email', 'Customer', 'Newsletter welcome', 'When someone joins the newsletter', 'Welcome to {{store_name}}', 'Thank you for joining us.
+
+Use the code WELCOME10 for 10% off your first order, up to Rs. 500.
+
+We write about new scents and seasonal pours about twice a month. You can leave at any time.', true),
+  ('e-owner-order', 'email', 'Owner', 'New order alert', 'When a customer places an order', 'New order {{order_number}}, {{order_total}}', 'New order {{order_number}} from {{customer_name}} ({{customer_phone}}).
+
+{{order_details}}
+
+Deliver to: {{delivery_address}}
+Total (COD): {{order_total}}
+
+Call or WhatsApp the customer to confirm it.', true),
+  ('e-owner-cancel', 'email', 'Owner', 'Order cancelled alert', 'When an order is cancelled', 'Order {{order_number}} was cancelled', 'Order {{order_number}} from {{customer_name}} was cancelled.
+
+{{order_details}}
+
+The stock has been put back.', true),
+  ('e-owner-inquiry', 'email', 'Owner', 'Customer message', 'When someone writes through the Contact page', 'Message from {{customer_name}}', '{{customer_name}} wrote through the Contact page.
+
+Reply to: {{customer_contact}}
+
+{{message}}', true),
+  ('e-owner-stock', 'email', 'Owner', 'Low stock alert', 'When a size drops to 5 or fewer after an order', 'Low stock: {{product_name}}', '{{product_name}} is running low: {{stock_left}} left.
+
+Restock it or switch the size off in Products.', true),
   ('w-owner', 'whatsapp', 'Owner', 'New order alert', 'When a customer places an order', null, 'New order {{order_number}} received. Customer: {{customer_name}}. Total: {{order_total}}. Payment: COD.', true),
   ('w-dispatch', 'whatsapp', 'Customer', 'Order dispatched', 'When you dispatch an order', null, 'Assalam o alaikum {{customer_name}}, your {{store_name}} order {{order_number}} is on its way with {{courier}}. Tracking ID: {{tracking_id}}. Track: {{tracking_url}}', false)
 on conflict (id) do nothing;

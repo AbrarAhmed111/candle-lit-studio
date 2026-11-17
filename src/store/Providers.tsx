@@ -34,7 +34,12 @@ async function syncWithAccount() {
 
   const { cart, wishlist } = store.getState()
   if (cart.couponCode) {
-    const result = await validateCoupon(cart.couponCode, computeTotals(cart.items).subtotal)
+    const totals = computeTotals(cart.items)
+    const result = await validateCoupon(
+      cart.couponCode,
+      totals.subtotal,
+      totals.lines.map(l => ({ variantId: l.variant.id, qty: l.qty })),
+    )
     if (result.ok) {
       registerCoupon(result.data)
       // Re-select it so totals recompute with the coupon now known

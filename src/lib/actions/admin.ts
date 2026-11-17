@@ -29,6 +29,10 @@ import {
 import type { AdminProduct, ContactMessage, Settings, Shop } from '@/components/admin/AdminData'
 import type { AdminOrder } from '@/data/admin'
 import { fail, friendly, ok, NOT_CONNECTED, type ActionResult } from './result'
+import { notifyOrderStatus, sendTemplate } from '@/lib/email/notify'
+import { emailConfigured } from '@/lib/email/mailer'
+import { createServiceClient } from '@/lib/supabase/server'
+import { siteUrl } from '@/lib/supabase/config'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -151,6 +155,8 @@ export async function adminUpdateOrder(number: string, patch: Partial<AdminOrder
   }
   // Cancelling returns stock to the shelf
   if (patch.status === 'Cancelled') refreshStore()
+  // The customer hears about each step (the owner switches steps on and off in Messages)
+  if (patch.status) await notifyOrderStatus(number, patch.status)
   return ok(null)
 }
 
@@ -169,6 +175,7 @@ export async function adminCreateOrder(order: AdminOrder): Promise<ActionResult<
   const { data, error } = await g.supabase.rpc('admin_create_order', { payload: order })
   if (error) return fail(friendly(error.message))
   refreshStore()
+  await notifyOrderStatus(data as string, order.status)
   return ok(data as string)
 }
 
@@ -344,4 +351,133 @@ export async function adminImportProducts(products: AdminProduct[]): Promise<Act
     if (!result.ok) return fail(`${product.name}: ${result.error}`)
   }
   return ok(null)
+}
+
+// ---------- Email ----------
+
+export type EmailLogEntry = {
+  id: number
+  at: string
+  templateId: string
+  to: string
+  subject: string
+  orderNumber?: string
+  status: 'sent' | 'failed' | 'skipped'
+  error?: string
+  attempts: number
+}
+
+export type EmailOverview = {
+  /** SMTP settings are present */
+  smtp: boolean
+  /** The service role key is present, needed to send from checkout and the daily job */
+  serviceKey: boolean
+  log: EmailLogEntry[]
+}
+
+export async function adminEmailOverview(): Promise<ActionResult<EmailOverview>> {
+  const g = await guard()
+  if ('error' in g) return fail(g.error!)
+  const { data, error } = await g.supabase.from('email_log').select('*').order('created_at', { ascending: false }).limit(200)
+  if (error) return fail(friendly(error.message))
+  return ok({
+    smtp: emailConfigured(),
+    serviceKey: !!createServiceClient(),
+    log: (data ?? []).map((e: any) => ({
+      id: e.id,
+      at: e.created_at,
+      templateId: e.template_id,
+      to: e.to_email,
+      subject: e.subject,
+      orderNumber: e.order_number ?? undefined,
+      status: e.status,
+      error: e.error ?? undefined,
+      attempts: e.attempts,
+    })),
+  })
+}
+
+const sample = {
+  customer_name: 'Sarah',
+  customer_phone: '03001234567',
+  order_number: 'CND-1024',
+  order_total: 'Rs. 3,503',
+  discount: 'Rs. 0',
+  order_details: 'Desi Gulab, 220 g x 1: Rs. 1,850\nChai & Cardamom, 220 g x 1: Rs. 1,403\nDelivery: Rs. 250\nPay on delivery: Rs. 3,503',
+  delivery_address: 'House 12, Street 8, DHA Phase 5, Lahore',
+  courier: 'TCS',
+  tracking_id: '779812345601',
+  tracking_url: 'https://www.tcsexpress.com/track/',
+  product_name: 'Desi Gulab, 220 g',
+  stock_left: '3',
+  customer_contact: '0300 1234567',
+  message: 'Do you make custom scents for weddings?',
+}
+
+/** Sends the wording on screen to one address, filled with a sample order */
+export async function adminSendTestEmail(templateId: string, wording: { subject: string; body: string }, to: string): Promise<ActionResult> {
+  const g = await guard()
+  if ('error' in g) return fail(g.error!)
+  if (!emailConfigured()) return fail('Email is not set up yet. Add the SMTP settings to the environment first.')
+  const db = createServiceClient()
+  if (!db) return fail('Add SUPABASE_SERVICE_ROLE_KEY to the environment to send emails.')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) return fail('Enter an email address like name@example.com.')
+
+  const { data: s } = await db.from('store_settings').select('*').eq('id', 1).single()
+  const store = { name: s?.name ?? 'Candle Lit Studio', email: s?.email ?? '', footer: `${s?.name ?? ''}, ${s?.address ?? ''}. ${s?.phone ?? ''}` }
+  const result = await sendTemplate(db, store, {
+    templateId: `test:${templateId}`,
+    to: to.trim(),
+    values: sample,
+    override: { subject: `[Test] ${wording.subject || store.name}`, body: wording.body },
+  })
+  return result?.ok ? ok(null) : fail(result && !result.ok ? `Not sent: ${result.error}` : 'Not sent.')
+}
+
+/** Sends a newsletter draft to the chosen subscribers, each with their own unsubscribe link */
+export async function adminSendNewsletter(draftId: string, emails: string[]): Promise<ActionResult<{ sent: number; failed: number }>> {
+  const g = await guard()
+  if ('error' in g) return fail(g.error!)
+  if (!emailConfigured()) return fail('Email is not set up yet. Add the SMTP settings to the environment first.')
+  const db = createServiceClient()
+  if (!db) return fail('Add SUPABASE_SERVICE_ROLE_KEY to the environment to send emails.')
+
+  // Read through the signed-in session: only Newsletter staff can see drafts
+  const { data: draft, error } = await g.supabase.from('newsletter_drafts').select('*').eq('id', draftId).single()
+  if (error || !draft) return fail('That draft no longer exists.')
+  if (draft.sent_at) return fail('This newsletter has already been sent.')
+
+  // Only people who are still subscribed, whatever the page sent
+  const wanted = [...new Set(emails.map(e => e.toLowerCase()))]
+  const { data: subscribers } = await db
+    .from('subscribers')
+    .select('email, unsubscribe_token')
+    .in('email', wanted.length ? wanted : [''])
+    .eq('subscribed', true)
+  if (!subscribers?.length) return fail('Nobody in this group is subscribed.')
+
+  const { data: s } = await db.from('store_settings').select('*').eq('id', 1).single()
+  const store = { name: s?.name ?? 'Candle Lit Studio', email: s?.email ?? '', footer: `${s?.name ?? ''}, ${s?.address ?? ''}. ${s?.phone ?? ''}` }
+  let sent = 0
+  let failed = 0
+  // A few at a time keeps most SMTP providers happy
+  for (let i = 0; i < subscribers.length; i += 5) {
+    const batch = subscribers.slice(i, i + 5)
+    const results = await Promise.all(
+      batch.map(sub =>
+        sendTemplate(db, store, {
+          templateId: 'newsletter',
+          to: sub.email,
+          values: {},
+          override: { subject: draft.subject, body: draft.body },
+          dedupeKey: `newsletter:${draftId}:${sub.email}`,
+          unsubscribeUrl: `${siteUrl}/unsubscribe?token=${sub.unsubscribe_token}`,
+          button: { label: 'Visit the shop', href: `${siteUrl}/shop` },
+        }),
+      ),
+    )
+    results.forEach(r => (r?.ok ? sent++ : failed++))
+  }
+  await g.supabase.from('newsletter_drafts').update({ sent_at: new Date().toISOString(), sent_count: sent }).eq('id', draftId)
+  return ok({ sent, failed })
 }

@@ -7,6 +7,7 @@ import { CATALOG_TAG } from '@/lib/catalog/server'
 import { normalisePkMobile } from '@/lib/pricing'
 import type { Coupon, Order } from '@/types'
 import { fail, friendly, ok, NOT_CONNECTED, type ActionResult } from './result'
+import { notifyInquiry, notifyNewSubscriber, notifyOrderPlaced } from '@/lib/email/notify'
 
 export type CheckoutInput = {
   customer: {
@@ -44,13 +45,27 @@ export async function placeOrder(input: CheckoutInput): Promise<ActionResult<Pla
   }
   // Stock and sold counts changed
   revalidateTag(CATALOG_TAG)
-  return ok(data as PlacedOrder)
+  const placed = data as PlacedOrder
+  // Confirmation, owner alert and low-stock alerts. A failed email never fails the order.
+  await notifyOrderPlaced(placed.number)
+  return ok(placed)
 }
 
-export async function validateCoupon(code: string, subtotal: number): Promise<ActionResult<Coupon>> {
+export async function validateCoupon(
+  code: string,
+  subtotal: number,
+  lines?: { variantId: string; qty: number }[],
+  customer?: { phone?: string; email?: string },
+): Promise<ActionResult<Coupon>> {
   if (!isSupabaseConfigured) return fail(NOT_CONNECTED)
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('validate_coupon', { code, subtotal: Math.round(subtotal) })
+  const { data, error } = await supabase.rpc('validate_coupon', {
+    code,
+    subtotal: Math.round(subtotal),
+    lines: lines ?? null,
+    phone: (customer?.phone && normalisePkMobile(customer.phone)) || null,
+    email: customer?.email?.trim() || null,
+  })
   if (error) return fail(friendly(error.message))
   const result = data as { ok: boolean; coupon?: Coupon; message?: string }
   return result.ok && result.coupon ? ok(result.coupon) : fail(result.message ?? 'That code cannot be used.')
@@ -85,7 +100,9 @@ export async function subscribeToNewsletter(
   if (!isSupabaseConfigured) return ok(null) // demo: nothing to store
   const supabase = await createClient()
   const { error } = await supabase.rpc('subscribe', { email: email.trim(), name: name ?? null, source })
-  return error ? fail(friendly(error.message)) : ok(null)
+  if (error) return fail(friendly(error.message))
+  await notifyNewSubscriber(email.trim())
+  return ok(null)
 }
 
 export async function sendContactMessage(values: { name: string; contact: string; message: string }): Promise<ActionResult> {
@@ -96,7 +113,9 @@ export async function sendContactMessage(values: { name: string; contact: string
   if (!isSupabaseConfigured) return ok(null)
   const supabase = await createClient()
   const { error } = await supabase.from('contact_messages').insert({ name, contact, message })
-  return error ? fail(friendly(error.message)) : ok(null)
+  if (error) return fail(friendly(error.message))
+  await notifyInquiry({ name, contact, message })
+  return ok(null)
 }
 
 export async function submitReview(values: {

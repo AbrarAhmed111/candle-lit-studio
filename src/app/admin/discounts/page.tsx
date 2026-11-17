@@ -110,6 +110,9 @@ export default function AdminDiscountsPage() {
                           c.minCart && `Cart over ${formatPKR(c.minCart)}`,
                           c.expiresAt && `Until ${shortDate(c.expiresAt)}`,
                           c.maxUses && `${c.maxUses} uses max`,
+                          c.firstOrderOnly && 'First order only',
+                          c.perCustomerLimit && `${c.perCustomerLimit} per customer`,
+                          (c.categories?.length || c.productIds?.length) && 'Selected candles only',
                         ]
                           .filter(Boolean)
                           .join(', ') || 'No conditions'}
@@ -223,8 +226,14 @@ export default function AdminDiscountsPage() {
 const whole = (text: string) => (text.trim() === '' ? undefined : Number(text))
 
 function CouponForm({ initial, onDone }: { initial?: AdminCoupon; onDone: () => void }) {
-  const { coupons, setShop } = useAdmin()
+  const { coupons, products, categories, setShop } = useAdmin()
   const [code, setCode] = useState(initial?.code ?? '')
+  const [firstOrderOnly, setFirstOrderOnly] = useState(initial?.firstOrderOnly ?? false)
+  const [perCustomer, setPerCustomer] = useState(initial?.perCustomerLimit ? String(initial.perCustomerLimit) : '')
+  const [limitTo, setLimitTo] = useState<string[]>(initial?.categories ?? [])
+  const [limitProducts, setLimitProducts] = useState<string[]>(initial?.productIds ?? [])
+  const toggleIn = (list: string[], value: string) =>
+    list.includes(value) ? list.filter(v => v !== value) : [...list, value]
   const [type, setType] = useState<Coupon['type']>(initial?.type ?? 'percent')
   const [value, setValue] = useState(initial?.value ? String(initial.value) : '')
   const [minCart, setMinCart] = useState(initial?.minCart ? String(initial.minCart) : '')
@@ -237,14 +246,14 @@ function CouponForm({ initial, onDone }: { initial?: AdminCoupon; onDone: () => 
     e.preventDefault()
     const clean = code.trim().toUpperCase()
     const amount = Number(value)
-    const optional = [whole(minCart), whole(maxDiscount), whole(maxUses)]
+    const optional = [whole(minCart), whole(maxDiscount), whole(maxUses), whole(perCustomer)]
     if (!/^[A-Z0-9]{3,20}$/.test(clean)) return setError('Use 3 to 20 letters and numbers for the code, no spaces.')
     if (!initial && coupons.some(c => c.code === clean)) return setError(`${clean} already exists. Choose another code.`)
     if (type === 'percent' && (!Number.isInteger(amount) || amount < 1 || amount > 90))
       return setError('Enter a percentage from 1 to 90.')
     if (type === 'fixed' && (!Number.isInteger(amount) || amount < 1)) return setError('Enter the amount off in whole rupees.')
     if (optional.some(n => n !== undefined && (!Number.isInteger(n) || n < 1)))
-      return setError('Minimum cart, maximum discount and maximum uses must be whole numbers above 0, or left empty.')
+      return setError('Minimum cart, maximum discount and the use limits must be whole numbers above 0, or left empty.')
 
     const next: AdminCoupon = {
       code: clean,
@@ -254,6 +263,10 @@ function CouponForm({ initial, onDone }: { initial?: AdminCoupon; onDone: () => 
       maxDiscount: type === 'percent' ? optional[1] : undefined,
       maxUses: optional[2],
       expiresAt: expiresAt || undefined,
+      firstOrderOnly,
+      perCustomerLimit: optional[3],
+      categories: limitTo,
+      productIds: limitProducts,
       description: '',
       active: initial?.active ?? true,
       used: initial?.used ?? 0,
@@ -312,7 +325,46 @@ function CouponForm({ initial, onDone }: { initial?: AdminCoupon; onDone: () => 
           Last day it works, optional
           <input type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} className="field mt-1.5" />
         </label>
+        <label className="field-label mb-0">
+          Uses per customer, optional
+          <input inputMode="numeric" value={perCustomer} onChange={e => { setPerCustomer(e.target.value); clear() }} placeholder="1" className="field mt-1.5" />
+        </label>
+        <label className="flex min-h-12 cursor-pointer items-center gap-3 self-end rounded-xl border border-hairline bg-linen px-4 text-[0.95rem]">
+          <input type="checkbox" checked={firstOrderOnly} onChange={e => setFirstOrderOnly(e.target.checked)} className="h-4 w-4 accent-caramel" />
+          First order only
+        </label>
       </div>
+
+      <fieldset className="mt-5">
+        <legend className="field-label">Works on, optional</legend>
+        <p className="-mt-1 mb-2 text-sm text-umber">Leave everything unticked for the whole store. The discount then applies only to the ticked candles.</p>
+        <div className="flex flex-wrap gap-1.5">
+          {categories.map(c => (
+            <button
+              key={c.slug}
+              type="button"
+              aria-pressed={limitTo.includes(c.slug)}
+              onClick={() => setLimitTo(list => toggleIn(list, c.slug))}
+              className={`min-h-9 rounded-full border px-3 text-sm ${limitTo.includes(c.slug) ? 'border-espresso bg-espresso text-ivory' : 'border-hairline hover:border-espresso'}`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm text-umber">
+            Or pick single candles{limitProducts.length ? ` (${limitProducts.length} picked)` : ''}
+          </summary>
+          <div className="mt-2 grid max-h-48 grid-cols-1 gap-1 overflow-y-auto rounded-xl border border-hairline p-2 sm:grid-cols-2">
+            {products.map(p => (
+              <label key={p.id} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm hover:bg-wax/50">
+                <input type="checkbox" checked={limitProducts.includes(p.id)} onChange={() => setLimitProducts(list => toggleIn(list, p.id))} className="h-4 w-4 accent-caramel" />
+                {p.name}
+              </label>
+            ))}
+          </div>
+        </details>
+      </fieldset>
       {error && (
         <p role="alert" className="field-error mt-4">
           {error}

@@ -11,7 +11,8 @@ const fetchCatalog = unstable_cache(
   async (): Promise<CatalogSnapshot> => {
     const db = createPublicClient()
     const [products, categories, reviews, settings, couriers, campaigns] = await Promise.all([
-      db.from('products').select('*, variants(*)').eq('active', true).order('created_at', { ascending: false }),
+      // effective_discount: the product's own discount or a running campaign, whichever is larger
+      db.from('products').select('*, effective_discount, variants(*)').eq('active', true).order('created_at', { ascending: false }),
       db.from('categories').select('*').order('sort'),
       db.from('reviews').select('*').eq('status', 'Approved').order('date', { ascending: false }),
       db.from('store_settings').select('*').eq('id', 1).single(),
@@ -28,7 +29,7 @@ const fetchCatalog = unstable_cache(
     return {
       // The admin flag stays out of the storefront copy
       products: (products.data ?? []).map(row => {
-        const { active: _active, ...product } = toProduct(row)
+        const { active: _active, ...product } = toProduct({ ...row, discount_percent: row.effective_discount })
         return product
       }),
       categories: (categories.data ?? []).map(toCategory),

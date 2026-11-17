@@ -64,8 +64,8 @@ on conflict (id) do nothing;\n`,
   ),
   rows(
     'coupons',
-    ['code', 'type', 'value', 'min_cart', 'max_discount', 'expires_at', 'description', 'active', 'used', 'max_uses'],
-    shop.coupons.map(c => [q(c.code), q(c.type), c.value, q(c.minCart), q(c.maxDiscount), q(c.expiresAt), q(c.description), q(c.active), c.used, q(c.maxUses)]),
+    ['code', 'type', 'value', 'min_cart', 'max_discount', 'expires_at', 'description', 'active', 'used', 'max_uses', 'first_order_only', 'per_customer_limit', 'product_ids', 'category_slugs'],
+    shop.coupons.map(c => [q(c.code), q(c.type), c.value, q(c.minCart), q(c.maxDiscount), q(c.expiresAt), q(c.description), q(c.active), c.used, q(c.maxUses), q(!!c.firstOrderOnly), q(c.perCustomerLimit), arr(c.productIds ?? []), arr(c.categories ?? [])]),
     '(code)',
   ),
   rows(
