@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { BadgeCheck } from 'lucide-react'
 import clsx from 'clsx'
 import { useAdmin, type ReviewStatus } from '@/components/admin/AdminData'
-import { card, Empty, PageHeader, shortDate, done } from '@/components/admin/ui'
+import { card, Empty, PageHeader, shortDate, doneWithUndo } from '@/components/admin/ui'
 import Stars from '@/components/store/Stars'
+import HowItWorks from '@/components/admin/HowItWorks'
 
 const tabs: ReviewStatus[] = ['Pending', 'Approved', 'Rejected']
 
@@ -15,13 +16,27 @@ export default function AdminReviewsPage() {
   const shown = reviews.filter(r => r.status === tab)
 
   const setStatus = (id: string, status: ReviewStatus) => {
+    const before = reviews.find(r => r.id === id)?.status ?? 'Pending'
     setShop('reviews', list => list.map(r => (r.id === id ? { ...r, status } : r)))
-    done(status === 'Approved' ? 'Review approved' : status === 'Rejected' ? 'Review rejected' : 'Moved back to pending')
+    doneWithUndo(
+      status === 'Approved'
+        ? 'Review approved, now on the website'
+        : status === 'Rejected'
+          ? 'Review rejected'
+          : 'Moved back to waiting',
+      () => setShop('reviews', list => list.map(r => (r.id === id ? { ...r, status: before } : r))),
+    )
   }
 
   return (
     <>
       <PageHeader title="Reviews" text="Only approved reviews appear on product pages." />
+      <HowItWorks id="reviews">
+        <p>
+          New reviews wait here until you approve them. Only approved reviews show on the website. Reviews that visitors
+          report three times come back here to be checked again.
+        </p>
+      </HowItWorks>
 
       <div className="mt-8 flex flex-wrap gap-2" role="group" aria-label="Filter reviews">
         {tabs.map(t => (
@@ -66,6 +81,21 @@ export default function AdminReviewsPage() {
                 <p className="text-sm text-umber">{shortDate(r.date)}</p>
               </div>
               <p className="mt-3 max-w-prose">{r.body}</p>
+              {r.images && r.images.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {r.images.map(url => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt="Customer photo" className="h-20 w-20 rounded-xl object-cover" />
+                    </a>
+                  ))}
+                </div>
+              )}
+              {(r.reports ?? 0) > 0 && (
+                <p className="mt-3 inline-block rounded-full bg-wine/10 px-3 py-1 text-sm text-wine">
+                  Reported {r.reports} {r.reports === 1 ? 'time' : 'times'} by visitors
+                </p>
+              )}
               <p className="mt-3 flex flex-wrap items-center gap-x-3 text-sm text-umber">
                 {r.author}, {r.city}
                 {r.verified ? (
@@ -78,12 +108,20 @@ export default function AdminReviewsPage() {
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {r.status !== 'Approved' && (
-                  <button type="button" onClick={() => setStatus(r.id, 'Approved')} className="btn-primary min-h-11 px-5 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setStatus(r.id, 'Approved')}
+                    className="btn-primary min-h-11 px-5 text-sm"
+                  >
                     Approve
                   </button>
                 )}
                 {r.status !== 'Rejected' && (
-                  <button type="button" onClick={() => setStatus(r.id, 'Rejected')} className="btn-outline min-h-11 px-5 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setStatus(r.id, 'Rejected')}
+                    className="btn-outline min-h-11 px-5 text-sm"
+                  >
                     {r.status === 'Approved' ? 'Take down' : 'Reject'}
                   </button>
                 )}

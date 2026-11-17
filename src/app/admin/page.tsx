@@ -5,8 +5,10 @@ import { useMemo, useState } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { useAdmin } from '@/components/admin/AdminData'
 import SalesChart, { type ChartPoint } from '@/components/admin/SalesChart'
+import GettingStarted from '@/components/admin/GettingStarted'
+import TodayList from '@/components/admin/TodayList'
 import { card, dateTime, Empty, input, Kpi, Loading, PageHeader, shortDate, StatusBadge } from '@/components/admin/ui'
-import { LOW_STOCK, summarise } from '@/data/admin'
+import { summarise } from '@/data/admin'
 import { formatPKR } from '@/lib/pricing'
 
 const DAY = 86_400_000
@@ -58,7 +60,7 @@ const bounds = (range: Range, custom: { from: string; to: string }): [number, nu
 }
 
 export default function AdminOverview() {
-  const { orders, customers, products } = useAdmin()
+  const { orders, customers, products, settings } = useAdmin()
   const [range, setRange] = useState<Range>('Last 30 days')
   const [custom, setCustom] = useState(() => ({
     from: dayInput(Date.now() - 13 * DAY),
@@ -122,7 +124,7 @@ export default function AdminOverview() {
 
   const lowStock = products
     .flatMap(p => p.variants.map(v => ({ id: v.id, name: p.name, label: v.label, stock: v.stock })))
-    .filter(v => v.stock <= LOW_STOCK)
+    .filter(v => v.stock <= settings.lowStockThreshold)
     .sort((a, b) => a.stock - b.stock)
 
   if (!orders || !view) {
@@ -175,6 +177,9 @@ export default function AdminOverview() {
         )}
       </PageHeader>
 
+      <GettingStarted />
+      <TodayList />
+
       {/* To do: always current */}
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi
@@ -194,18 +199,23 @@ export default function AdminOverview() {
           href="/admin/products?stock=low"
           label="Low or out of stock"
           value={String(lowStock.length)}
-          hint={`Sizes with ${LOW_STOCK} or fewer left`}
+          hint={`Sizes with ${settings.lowStockThreshold} or fewer left`}
         />
       </div>
 
       <h2 className="mt-10 font-sans text-sm font-semibold tracking-normal text-umber">{range}</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Kpi label="Orders" value={String(totals.count)} hint={`${view.newCustomers} new customers`} />
-        <Kpi label="Gross order value" value={formatPKR(totals.gross)} hint="Excludes cancelled" />
+        <Kpi label="Value of orders" value={formatPKR(totals.gross)} hint="All orders except cancelled" />
         <Kpi label="Average order" value={formatPKR(totals.average)} />
         <Kpi label="Delivered sales" value={formatPKR(totals.deliveredSales)} hint="Delivered orders only" />
-        <Kpi label="COD collected" value={formatPKR(totals.codCollected)} hint="Cash the courier has taken" />
-        <Kpi label="Awaiting settlement" value={formatPKR(totals.awaitingSettlement)} hint="Courier still owes you" />
+        <Kpi label="Payments received" value={formatPKR(totals.received)} hint="Easypaisa approved, plus older cash" />
+        <Kpi
+          label="Payments to check"
+          value={formatPKR(totals.toCheck)}
+          hint="Easypaisa payments waiting for you"
+          href="/admin/payments"
+        />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.7fr_1fr]">
@@ -230,10 +240,7 @@ export default function AdminOverview() {
           <ul className="mt-5 space-y-3.5">
             {totals.byStatus.map(s => (
               <li key={s.status}>
-                <Link
-                  href={`/admin/orders?status=${encodeURIComponent(s.status)}`}
-                  className="group block"
-                >
+                <Link href={`/admin/orders?status=${encodeURIComponent(s.status)}`} className="group block">
                   <span className="flex justify-between text-[0.95rem]">
                     <span className="group-hover:text-caramel">{s.status}</span>
                     <span className="tabular-nums">{s.count}</span>

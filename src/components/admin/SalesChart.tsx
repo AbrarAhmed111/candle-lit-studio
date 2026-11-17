@@ -43,7 +43,15 @@ export default function SalesChart({ points }: { points: ChartPoint[] }) {
         <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label="Order value by period">
           {ticks.map(t => (
             <g key={t}>
-              <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="#D9CBB3" strokeWidth={t === 0 ? 1 : 0.6} strokeDasharray={t === 0 ? undefined : '3 4'} />
+              <line
+                x1={PAD.left}
+                x2={W - PAD.right}
+                y1={y(t)}
+                y2={y(t)}
+                stroke="#D9CBB3"
+                strokeWidth={t === 0 ? 1 : 0.6}
+                strokeDasharray={t === 0 ? undefined : '3 4'}
+              />
               <text x={PAD.left - 10} y={y(t) + 4} textAnchor="end" fontSize="11" fill="#6F5546">
                 {compactPKR(t)}
               </text>
@@ -62,11 +70,12 @@ export default function SalesChart({ points }: { points: ChartPoint[] }) {
                     fill={hover === i ? '#2E1F17' : '#A9692F'}
                   />
                 )}
-                {(i % every === 0 || i === points.length - 1) && (points.length - 1 - i >= every / 2 || i === points.length - 1) && (
-                  <text x={x + barW / 2} y={H - 8} textAnchor="middle" fontSize="11" fill="#6F5546">
-                    {p.label}
-                  </text>
-                )}
+                {(i % every === 0 || i === points.length - 1) &&
+                  (points.length - 1 - i >= every / 2 || i === points.length - 1) && (
+                    <text x={x + barW / 2} y={H - 8} textAnchor="middle" fontSize="11" fill="#6F5546">
+                      {p.label}
+                    </text>
+                  )}
                 {/* Hit area is the whole column, wider than the bar */}
                 <rect
                   x={PAD.left + i * slot}

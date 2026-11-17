@@ -1,8 +1,6 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
-import { Mail } from 'lucide-react'
-import { FaWhatsapp } from 'react-icons/fa'
 import clsx from 'clsx'
 import { useAdmin, type MessageTemplate } from '@/components/admin/AdminData'
 import { card, done, PageHeader } from '@/components/admin/ui'
@@ -10,8 +8,8 @@ import Modal from '@/components/store/Modal'
 import ContactInbox from '@/components/admin/ContactInbox'
 import EmailLog, { EmailStatus, useEmailOverview } from '@/components/admin/EmailLog'
 import { placeholders } from '@/lib/email/render'
-import { adminSendTestEmail } from '@/lib/actions/admin'
-import toast from 'react-hot-toast'
+import HowItWorks from '@/components/admin/HowItWorks'
+import Switch from '@/components/ui/Switch'
 
 // Placeholders the owner can use, with the sample shown in the preview
 const variables = placeholders
@@ -22,51 +20,35 @@ const fill = (text: string, storeName: string) =>
     text,
   )
 
-const channels = [
-  { key: 'email', label: 'Email', icon: Mail },
-  { key: 'whatsapp', label: 'WhatsApp', icon: FaWhatsapp },
-] as const
-
 export default function AdminMessagesPage() {
   const { templates, settings, setShop } = useAdmin()
   const email = useEmailOverview()
-  const [channel, setChannel] = useState<MessageTemplate['channel']>('email')
   const [editing, setEditing] = useState<string | null>(null)
-  const shown = templates.filter(t => t.channel === channel)
+  const shown = templates.filter(t => t.channel === 'email')
   const current = templates.find(t => t.id === editing)
 
   const toggle = (t: MessageTemplate) => {
     setShop('templates', list => list.map(x => (x.id === t.id ? { ...x, active: !x.active } : x)))
-    done(`${t.name} (${t.channel}) switched ${t.active ? 'off' : 'on'}`)
+    done(`${t.name} email switched ${t.active ? 'off' : 'on'}`)
   }
 
   return (
     <>
-      <PageHeader title="Messages" text="Customer messages from the Contact page, and the automatic messages sent about orders." />
+      <PageHeader
+        title="Messages"
+        text="Customer messages from the Contact page, and the automatic messages sent about orders."
+      />
+      <HowItWorks id="messages">
+        <p>
+          The <strong>Inbox</strong> holds messages from the Contact page. Reply by WhatsApp, call or email, then mark
+          them answered.
+        </p>
+        <p>Below are the automatic emails. Switch each one on or off and change its wording.</p>
+      </HowItWorks>
       <ContactInbox />
 
-      <h2 className="mt-14 text-3xl">Automatic messages</h2>
+      <h2 className="mt-14 text-3xl">Automatic emails</h2>
       <EmailStatus live={email.live} overview={email.overview} />
-
-      <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Channel">
-        {channels.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setChannel(key)}
-            aria-pressed={channel === key}
-            className={clsx(
-              'flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm transition-colors',
-              channel === key ? 'border-espresso bg-espresso text-ivory' : 'border-hairline bg-linen hover:border-espresso',
-            )}
-          >
-            <Icon size={16} /> {label}
-            <span className={clsx('tabular-nums', channel === key ? 'text-wax/80' : 'text-umber')}>
-              {templates.filter(t => t.channel === key).length}
-            </span>
-          </button>
-        ))}
-      </div>
 
       <ul className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {shown.map(t => (
@@ -78,16 +60,7 @@ export default function AdminMessagesPage() {
                   To the {t.to.toLowerCase()}. {t.trigger}.
                 </p>
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={t.active}
-                aria-label={`Send ${t.name}`}
-                onClick={() => toggle(t)}
-                className={clsx('relative h-7 w-12 shrink-0 rounded-full transition-colors', t.active ? 'bg-sage' : 'bg-hairline')}
-              >
-                <span className={clsx('absolute left-1 top-1 h-5 w-5 rounded-full bg-linen transition-transform', t.active && 'translate-x-5')} />
-              </button>
+              <Switch checked={t.active} onChange={() => toggle(t)} label={`Send ${t.name}`} />
             </div>
             <div className="mt-4 flex-1 rounded-xl bg-wax/50 p-4 text-[0.95rem]">
               {t.subject && <p className="mb-2 font-medium">{fill(t.subject, settings.name)}</p>}
@@ -115,9 +88,7 @@ export default function AdminMessagesPage() {
 }
 
 function TemplateForm({ template, onDone }: { template: MessageTemplate; onDone: () => void }) {
-  const { settings, setShop, live } = useAdmin()
-  const [testTo, setTestTo] = useState(settings.email)
-  const [testing, setTesting] = useState(false)
+  const { settings, setShop } = useAdmin()
   const [subject, setSubject] = useState(template.subject ?? '')
   const [body, setBody] = useState(template.body)
   const [error, setError] = useState('')
@@ -132,9 +103,17 @@ function TemplateForm({ template, onDone }: { template: MessageTemplate; onDone:
       .find(name => name !== 'store_name' && !variables.some(([key]) => key === name))
     if (unknown) return setError(`{{${unknown}}} is not a placeholder we can fill. Use one from the list.`)
     setShop('templates', list =>
-      list.map(t => (t.id === template.id ? { ...t, subject: isEmail ? subject.trim() : undefined, body: body.trim() } : t)),
+      list.map(t =>
+        t.id === template.id
+          ? {
+              ...t,
+              subject: isEmail ? subject.trim() : undefined,
+              body: body.trim(),
+            }
+          : t,
+      ),
     )
-    done(`${template.name} (${template.channel}) wording saved`)
+    done(`${template.name} email wording saved`)
     onDone()
   }
 
@@ -175,7 +154,9 @@ function TemplateForm({ template, onDone }: { template: MessageTemplate; onDone:
             }}
             className="field py-3"
           />
-          <p className="mt-3 text-sm text-umber">Tap a placeholder to add it. It is replaced with the real value when sent.</p>
+          <p className="mt-3 text-sm text-umber">
+            Tap a placeholder to add it. It is replaced with the real value when sent.
+          </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {[...variables.map(([key]) => key), 'store_name'].map(key => (
               <button
@@ -197,7 +178,9 @@ function TemplateForm({ template, onDone }: { template: MessageTemplate; onDone:
               isEmail ? 'border border-hairline bg-linen' : 'bg-[#E7F8E1]',
             )}
           >
-            {isEmail && <p className="mb-3 border-b border-hairline pb-3 font-medium">{fill(subject, settings.name)}</p>}
+            {isEmail && (
+              <p className="mb-3 border-b border-hairline pb-3 font-medium">{fill(subject, settings.name)}</p>
+            )}
             <p className="whitespace-pre-line break-words">{fill(body, settings.name)}</p>
           </div>
         </div>
@@ -206,30 +189,6 @@ function TemplateForm({ template, onDone }: { template: MessageTemplate; onDone:
         <p role="alert" className="field-error mt-4">
           {error}
         </p>
-      )}
-      {isEmail && live && (
-        <div className="mt-6 flex flex-wrap items-end gap-2 rounded-2xl border border-hairline p-4">
-          <div className="min-w-0 flex-1">
-            <label htmlFor="tpl-test" className="field-label">
-              Send a test to
-            </label>
-            <input id="tpl-test" type="email" value={testTo} onChange={e => setTestTo(e.target.value)} className="field" />
-          </div>
-          <button
-            type="button"
-            disabled={testing}
-            onClick={async () => {
-              setTesting(true)
-              const result = await adminSendTestEmail(template.id, { subject, body }, testTo)
-              setTesting(false)
-              if (result.ok) toast.success(`Test sent to ${testTo}`)
-              else toast.error(result.error)
-            }}
-            className="btn-outline shrink-0"
-          >
-            {testing ? 'Sending…' : 'Send test'}
-          </button>
-        </div>
       )}
       <div className="mt-6 flex flex-wrap gap-2">
         <button type="submit" className="btn-primary">

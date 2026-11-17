@@ -123,7 +123,10 @@ export default function AdminReportsPage() {
 
   return (
     <>
-      <PageHeader title="Reports" text="What sells, where it goes and who buys it. Cancelled orders are left out of sales.">
+      <PageHeader
+        title="Reports"
+        text="What sells, where it goes and who buys it. Cancelled orders are left out of sales."
+      >
         <label htmlFor="period" className="sr-only">
           Period
         </label>
@@ -140,7 +143,11 @@ export default function AdminReportsPage() {
         <Kpi label="Orders" value={String(report.orders)} hint={`${report.cancelled} cancelled`} />
         <Kpi label="Gross order value" value={formatPKR(report.gross)} hint="Before COD collection" />
         <Kpi label="Average order" value={formatPKR(report.average)} />
-        <Kpi label="Customers" value={String(report.buyers.length)} hint={`${report.newBuyers} new, ${returning} returning`} />
+        <Kpi
+          label="Customers"
+          value={String(report.buyers.length)}
+          hint={`${report.newBuyers} new, ${returning} returning`}
+        />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -153,7 +160,13 @@ export default function AdminReportsPage() {
           onExport={() =>
             downloadCsv('courier-performance.csv', [
               ['Courier', 'Shipped', 'Delivered', 'Delivered %', 'Delivered value (PKR)'],
-              ...report.couriers.map(c => [c.name, c.shipped, c.delivered, Math.round((c.delivered / c.shipped) * 100), c.value]),
+              ...report.couriers.map(c => [
+                c.name,
+                c.shipped,
+                c.delivered,
+                Math.round((c.delivered / c.shipped) * 100),
+                c.value,
+              ]),
             ])
           }
           empty={report.couriers.length === 0}
@@ -172,7 +185,8 @@ export default function AdminReportsPage() {
                 <td className={td}>{c.name}</td>
                 <td className={`${td} text-right tabular-nums`}>{c.shipped}</td>
                 <td className={`${td} text-right tabular-nums`}>
-                  {c.delivered} <span className="text-sm text-umber">({Math.round((c.delivered / c.shipped) * 100)}%)</span>
+                  {c.delivered}{' '}
+                  <span className="text-sm text-umber">({Math.round((c.delivered / c.shipped) * 100)}%)</span>
                 </td>
                 <td className={`${td} text-right tabular-nums`}>{formatPKR(c.value)}</td>
               </tr>
@@ -271,7 +285,7 @@ function Section({
           type="button"
           onClick={onExport}
           disabled={empty}
-          aria-label={`Export ${title} to CSV`}
+          aria-label={`Download ${title} as a spreadsheet`}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-hairline hover:border-espresso disabled:opacity-40"
         >
           <Download size={17} />
@@ -307,7 +321,10 @@ function SalesTable({
       title={title}
       empty={rows.length === 0}
       onExport={() =>
-        downloadCsv(file, [[first, 'Orders', 'Units', 'Sales (PKR)'], ...rows.map(r => [r.name, r.orders, r.units, r.value])])
+        downloadCsv(file, [
+          [first, 'Orders', 'Units', 'Sales (PKR)'],
+          ...rows.map(r => [r.name, r.orders, r.units, r.value]),
+        ])
       }
     >
       <thead className="border-b border-hairline bg-wax/50">

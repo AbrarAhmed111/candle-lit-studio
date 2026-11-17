@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { createElement, useEffect, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -36,6 +36,33 @@ export const done = (text: string) => {
   window.dispatchEvent(new CustomEvent('admin-log', { detail: text }))
 }
 
+/** Like done(), with an Undo button for a few seconds in case of a mistaken tap */
+export const doneWithUndo = (text: string, undo: () => void, undoText = 'Undone') => {
+  window.dispatchEvent(new CustomEvent('admin-log', { detail: text }))
+  toast.success(
+    t =>
+      createElement(
+        'span',
+        { className: 'flex items-center gap-4' },
+        createElement('span', null, text),
+        createElement(
+          'button',
+          {
+            type: 'button',
+            className: 'font-medium text-ember underline underline-offset-4 hover:text-ivory',
+            onClick: () => {
+              toast.dismiss(t.id)
+              undo()
+              done(undoText)
+            },
+          },
+          'Undo',
+        ),
+      ),
+    { duration: 7000 },
+  )
+}
+
 export const whatsappLink = (phone: string, text: string) =>
   `https://wa.me/92${phone.replace(/^0/, '')}?text=${encodeURIComponent(text)}`
 
@@ -52,15 +79,7 @@ export const downloadCsv = (filename: string, rows: (string | number)[][]) => {
   URL.revokeObjectURL(link.href)
 }
 
-export function PageHeader({
-  title,
-  text,
-  children,
-}: {
-  title: string
-  text?: string
-  children?: ReactNode
-}) {
+export function PageHeader({ title, text, children }: { title: string; text?: string; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
@@ -79,6 +98,9 @@ const statusTone: Record<OrderStatus, string> = {
   Packed: 'bg-wax text-espresso',
   Dispatched: 'bg-sage/15 text-sage',
   Delivered: 'bg-sage text-ivory',
+  'Cancellation Requested': 'bg-wine/15 text-wine',
+  'Failed Delivery': 'bg-wine/15 text-wine',
+  Returned: 'bg-wine/10 text-wine',
   Cancelled: 'bg-wine/10 text-wine',
 }
 
@@ -86,6 +108,12 @@ const paymentTone: Record<PaymentStatus, string> = {
   'Pending Collection': 'bg-wax text-umber',
   'Collected by Courier': 'bg-ember/25 text-toffee',
   'Settled to Business': 'bg-sage/15 text-sage',
+  'Reconciliation Required': 'bg-ember/25 text-toffee',
+  Disputed: 'bg-wine/15 text-wine',
+  Adjusted: 'bg-wax text-espresso',
+  'Pending Verification': 'bg-ember/25 text-toffee',
+  Paid: 'bg-sage/15 text-sage',
+  'Payment Rejected': 'bg-wine/15 text-wine',
 }
 
 const badge = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-sm font-medium'

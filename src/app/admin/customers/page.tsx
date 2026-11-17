@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, Search } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { useAdmin } from '@/components/admin/AdminData'
@@ -19,11 +19,21 @@ import {
   whatsappLink,
 } from '@/components/admin/ui'
 import Modal from '@/components/store/Modal'
+import CustomerNotes from '@/components/admin/CustomerNotes'
 import { formatPKR } from '@/lib/pricing'
 
 export default function AdminCustomersPage() {
-  const { orders, customers } = useAdmin()
+  const { orders, customers, customerNotes } = useAdmin()
+  const noteOf = (phone: string) => customerNotes.find(n => n.phone === phone)
   const [query, setQuery] = useState('')
+  // Opened from the quick search with a phone number
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q')
+    if (q) {
+      setQuery(q)
+      setOpenPhone(q)
+    }
+  }, [])
   const [kind, setKind] = useState('')
   const [city, setCity] = useState('')
   const [openPhone, setOpenPhone] = useState<string | null>(null)
@@ -74,8 +84,13 @@ export default function AdminCustomersPage() {
         title="Customers"
         text={`${customers.length} customers, ${customers.filter(c => c.orders.length > 1).length} have ordered more than once.`}
       >
-        <button type="button" onClick={exportCsv} disabled={found.length === 0} className="btn-outline min-h-11 px-5 text-sm">
-          <Download size={16} /> Export {found.length} to CSV
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={found.length === 0}
+          className="btn-outline min-h-11 px-5 text-sm"
+        >
+          <Download size={16} /> Export {found.length} as a spreadsheet
         </button>
       </PageHeader>
 
@@ -126,9 +141,19 @@ export default function AdminCustomersPage() {
                 {found.map(c => (
                   <tr key={c.phone}>
                     <td className={td}>
-                      <button type="button" onClick={() => setOpenPhone(c.phone)} className="text-left font-medium hover:text-caramel">
+                      <button
+                        type="button"
+                        onClick={() => setOpenPhone(c.phone)}
+                        className="text-left font-medium hover:text-caramel"
+                      >
                         {c.name}
                       </button>
+                      {noteOf(c.phone)?.status === 'VIP' && (
+                        <span className="ml-2 rounded-full bg-ember/25 px-2 py-0.5 text-xs text-toffee">VIP</span>
+                      )}
+                      {noteOf(c.phone)?.status === 'Blocked' && (
+                        <span className="ml-2 rounded-full bg-wine/10 px-2 py-0.5 text-xs text-wine">Blocked</span>
+                      )}
                       <span className="block text-sm text-umber">
                         {c.phone}
                         {c.email && `, ${c.email}`}
@@ -139,7 +164,11 @@ export default function AdminCustomersPage() {
                     <td className={`${td} text-right tabular-nums`}>{formatPKR(c.spent)}</td>
                     <td className={td}>{shortDate(c.lastOrderAt)}</td>
                     <td className={`${td} whitespace-nowrap text-right`}>
-                      <button type="button" onClick={() => setOpenPhone(c.phone)} className="link min-h-11 px-2 text-sm">
+                      <button
+                        type="button"
+                        onClick={() => setOpenPhone(c.phone)}
+                        className="link min-h-11 px-2 text-sm"
+                      >
                         View profile
                       </button>
                     </td>
@@ -185,18 +214,25 @@ export default function AdminCustomersPage() {
               {viewed.address}, {viewed.area}, {viewed.city}
             </address>
             <a
-              href={whatsappLink(viewed.phone, `Assalam o alaikum ${viewed.name.split(' ')[0]}, this is Candle Lit Studio.`)}
+              href={whatsappLink(
+                viewed.phone,
+                `Assalam o alaikum ${viewed.name.split(' ')[0]}, this is Candle Lit Studio.`,
+              )}
               target="_blank"
               rel="noreferrer"
               className="btn-outline mt-4 min-h-11 px-4 text-sm"
             >
               <FaWhatsapp size={17} /> WhatsApp
             </a>
+            <CustomerNotes key={viewed.phone} phone={viewed.phone} name={viewed.name} />
             <h3 className="mt-6 font-sans text-sm font-semibold tracking-normal">Order history</h3>
             <ul className="mt-2 max-h-60 divide-y divide-hairline overflow-y-auto border-y border-hairline">
               {viewed.orders.map(o => (
                 <li key={o.number}>
-                  <Link href={`/admin/orders/${o.number}`} className="flex items-center justify-between gap-3 py-3 hover:text-caramel">
+                  <Link
+                    href={`/admin/orders/${o.number}`}
+                    className="flex items-center justify-between gap-3 py-3 hover:text-caramel"
+                  >
                     <span>
                       <span className="font-medium">{o.number}</span>
                       <span className="ml-2 text-sm text-umber">{shortDate(o.placedAt)}</span>

@@ -22,9 +22,10 @@ import {
 import { orderFlow, paymentFlow } from '@/data/admin'
 import { formatPKR } from '@/lib/pricing'
 import type { OrderStatus } from '@/types'
+import HowItWorks from '@/components/admin/HowItWorks'
 
 const PAGE = 12
-const statuses: OrderStatus[] = [...orderFlow, 'Cancelled']
+const statuses: OrderStatus[] = [...orderFlow, 'Cancellation Requested', 'Failed Delivery', 'Returned', 'Cancelled']
 // A chip that groups the steps between confirming and dispatching
 const TO_DISPATCH = 'To dispatch'
 const toDispatch: OrderStatus[] = ['Confirmed', 'Processing', 'Packed']
@@ -97,7 +98,19 @@ function Orders() {
 
   const exportCsv = () =>
     downloadCsv('orders.csv', [
-      ['Order', 'Placed', 'Customer', 'Phone', 'City', 'Items', 'Total (PKR)', 'Payment', 'Status', 'Courier', 'Tracking ID'],
+      [
+        'Order',
+        'Placed',
+        'Customer',
+        'Phone',
+        'City',
+        'Items',
+        'Total (PKR)',
+        'Payment',
+        'Status',
+        'Courier',
+        'Tracking ID',
+      ],
       ...found.map(o => [
         o.number,
         dateTime(o.placedAt),
@@ -115,16 +128,43 @@ function Orders() {
 
   return (
     <>
-      <PageHeader title="Orders" text="Every order is cash on delivery. Confirm, pack, dispatch, then record the cash.">
-        <button type="button" onClick={exportCsv} disabled={found.length === 0} className="btn-outline min-h-11 px-5 text-sm">
-          <Download size={16} /> Export {found.length} to CSV
+      <PageHeader
+        title="Orders"
+        text="Every order is paid by Easypaisa. Check the payment, confirm, pack, then dispatch."
+      >
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={found.length === 0}
+          className="btn-outline min-h-11 px-5 text-sm"
+        >
+          <Download size={16} /> Export {found.length} as a spreadsheet
         </button>
         <Link href="/admin/orders/new" className="btn-primary">
           <Plus size={17} /> New order
         </Link>
       </PageHeader>
+      <HowItWorks id="orders">
+        <p>
+          Every new order starts as <strong>Needs confirmation</strong>. Call or WhatsApp the customer, then open the
+          order and press <strong>Confirm order</strong>.
+        </p>
+        <p>
+          After that, each order has one big button for its next step: start preparing, mark as packed, dispatch (add
+          the courier and tracking ID), and mark as delivered. The customer is emailed at each step you have switched on
+          in Messages.
+        </p>
+        <p>
+          If a customer asks to cancel, the order shows <strong>Cancellation requested</strong> with buttons to approve
+          or keep it.
+        </p>
+      </HowItWorks>
 
-      <div className="no-scroll relative -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filter by status">
+      <div
+        className="no-scroll relative -mx-4 mt-8 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0"
+        role="group"
+        aria-label="Filter by status"
+      >
         {['', statuses[0], TO_DISPATCH, ...statuses.slice(1)].map(s => {
           const count = s ? base.filter(o => matchesStatus(o.status, s)).length : base.length
           return (
@@ -162,19 +202,43 @@ function Orders() {
             className={`${input} w-full pl-10`}
           />
         </div>
-        <select aria-label="Payment status" value={payment} onChange={e => { setPayment(e.target.value); setPage(1) }} className={`${input} min-w-0`}>
+        <select
+          aria-label="Payment status"
+          value={payment}
+          onChange={e => {
+            setPayment(e.target.value)
+            setPage(1)
+          }}
+          className={`${input} min-w-0`}
+        >
           <option value="">Any payment status</option>
           {paymentFlow.map(p => (
             <option key={p}>{p}</option>
           ))}
         </select>
-        <select aria-label="City" value={city} onChange={e => { setCity(e.target.value); setPage(1) }} className={`${input} min-w-0`}>
+        <select
+          aria-label="City"
+          value={city}
+          onChange={e => {
+            setCity(e.target.value)
+            setPage(1)
+          }}
+          className={`${input} min-w-0`}
+        >
           <option value="">Any city</option>
           {cities.map(c => (
             <option key={c}>{c}</option>
           ))}
         </select>
-        <select aria-label="Courier" value={courier} onChange={e => { setCourier(e.target.value); setPage(1) }} className={`${input} col-span-2 min-w-0 sm:col-span-1`}>
+        <select
+          aria-label="Courier"
+          value={courier}
+          onChange={e => {
+            setCourier(e.target.value)
+            setPage(1)
+          }}
+          className={`${input} col-span-2 min-w-0 sm:col-span-1`}
+        >
           <option value="">Any courier</option>
           {couriers.map(c => (
             <option key={c}>{c}</option>
@@ -226,7 +290,11 @@ function Orders() {
                       className="cursor-pointer transition-colors hover:bg-wax/40"
                     >
                       <td className={td}>
-                        <Link href={`/admin/orders/${o.number}`} className="font-medium hover:text-caramel" onClick={e => e.stopPropagation()}>
+                        <Link
+                          href={`/admin/orders/${o.number}`}
+                          className="font-medium hover:text-caramel"
+                          onClick={e => e.stopPropagation()}
+                        >
                           {o.number}
                         </Link>
                         <span className="block text-sm text-umber">{dateTime(o.placedAt)}</span>
@@ -289,10 +357,20 @@ function Orders() {
             {(current - 1) * PAGE + 1} to {Math.min(current * PAGE, found.length)} of {found.length}
           </p>
           <div className="flex gap-2">
-            <button type="button" disabled={current === 1} onClick={() => setPage(current - 1)} className="btn-outline min-h-11 px-5 text-sm">
+            <button
+              type="button"
+              disabled={current === 1}
+              onClick={() => setPage(current - 1)}
+              className="btn-outline min-h-11 px-5 text-sm"
+            >
               Previous
             </button>
-            <button type="button" disabled={current === pages} onClick={() => setPage(current + 1)} className="btn-outline min-h-11 px-5 text-sm">
+            <button
+              type="button"
+              disabled={current === pages}
+              onClick={() => setPage(current + 1)}
+              className="btn-outline min-h-11 px-5 text-sm"
+            >
               Next
             </button>
           </div>

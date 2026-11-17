@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import { useAdmin } from '@/components/admin/AdminData'
 import { card, done, Loading } from '@/components/admin/ui'
 import { cities } from '@/data/store'
+import { cleanReference } from '@/lib/payments'
 import { formatPKR, normalisePkMobile, salePrice } from '@/lib/pricing'
 
 type Line = { key: number; variantId: string; qty: string }
@@ -15,7 +16,7 @@ type Line = { key: number; variantId: string; qty: string }
 /** Enter an order taken by phone, WhatsApp or Instagram. */
 export default function NewOrderPage() {
   const router = useRouter()
-  const { orders, products, coupons, settings, addOrder } = useAdmin()
+  const { orders, products, coupons, settings, addOrder, shippingRates } = useAdmin()
   const [customer, setCustomer] = useState({
     name: '',
     phone: '',
@@ -27,21 +28,26 @@ export default function NewOrderPage() {
   })
   const [lines, setLines] = useState<Line[]>([{ key: 1, variantId: '', qty: '1' }])
   const [code, setCode] = useState('')
+  // Phone orders are paid by Easypaisa before they are entered
+  const [reference, setReference] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   if (!orders) return <Loading />
 
-  // Every size that can be sold right now
+  // Every size that can be sold right now, once per colour for products that come in colours
   const options = products
     .filter(p => p.active)
     .flatMap(p =>
-      p.variants.map(v => ({
-        id: v.id,
-        product: p,
-        variant: v,
-        price: salePrice(p, v),
-        text: `${p.name}, ${v.label}`,
-      })),
+      p.variants.flatMap(v =>
+        (p.colours?.length ? p.colours.map(c => c.name) : [undefined]).map(colour => ({
+          id: colour ? `${v.id}|${colour}` : v.id,
+          product: p,
+          variant: v,
+          colour,
+          price: salePrice(p, v),
+          text: `${p.name}, ${v.label}${colour ? `, ${colour}` : ''}`,
+        })),
+      ),
     )
   const find = (id: string) => options.find(o => o.id === id)
 
@@ -69,9 +75,14 @@ export default function NewOrderPage() {
       : usable.type === 'fixed'
         ? Math.min(subtotal, usable.value)
         : 0
-  const freeDelivery =
-    usable?.type === 'free_shipping' || (settings.freeShippingOver > 0 && subtotal >= settings.freeShippingOver)
-  const shipping = picked.length === 0 || freeDelivery ? 0 : settings.shippingFee
+  // City delivery rules from Settings (Quetta has its own fee), else the standard fee
+  const city = customer.city.toLowerCase()
+  const area = customer.area.trim().toLowerCase()
+  const rates = shippingRates.filter(r => r.active && r.city.toLowerCase() === city)
+  const rule = rates.find(r => r.area && r.area.toLowerCase() === area) ?? rates.find(r => !r.area)
+  const freeOver = rule?.freeOver ?? settings.freeShippingOver
+  const freeDelivery = usable?.type === 'free_shipping' || (freeOver > 0 && subtotal - couponDiscount >= freeOver)
+  const shipping = picked.length === 0 || freeDelivery ? 0 : (rule?.fee ?? settings.shippingFee)
   const total = subtotal - couponDiscount + shipping
 
   const bind = (key: keyof typeof customer) => ({
@@ -105,7 +116,7 @@ export default function NewOrderPage() {
     else if (lines.some(l => !Number.isInteger(Number(l.qty)) || Number(l.qty) < 1))
       found.lines = 'Enter each quantity as a whole number, 1 or more.'
     else if (new Set(lines.map(l => l.variantId)).size < lines.length)
-      found.lines = 'The same candle and size is listed twice. Raise the quantity on one line instead.'
+      found.lines = 'The same candle, size and colour is listed twice. Raise the quantity on one line instead.'
     else {
       const short = picked.find(l => l.count > l.option!.variant.stock)
       if (short)
@@ -138,8 +149,10 @@ export default function NewOrderPage() {
       },
       lines: picked.map(l => ({
         productId: l.option!.product.id,
+        variantId: l.option!.variant.id,
         name: l.option!.product.name,
         variant: l.option!.variant.label,
+        colour: l.option!.colour,
         qty: l.count,
         unitPrice: l.option!.price,
         originalPrice: l.option!.variant.price,
@@ -149,8 +162,9 @@ export default function NewOrderPage() {
       couponDiscount,
       shipping,
       total,
-      paymentMethod: 'Cash on Delivery',
-      paymentStatus: 'Pending Collection',
+      paymentMethod: 'Easypaisa',
+      paymentStatus: 'Paid',
+      payment: { reference: cleanReference(reference) || undefined, verifiedAt: now },
       history: [{ at: now, text: 'Order entered by hand in the dashboard, already confirmed with the customer' }],
       notes: [],
     })
@@ -162,7 +176,10 @@ export default function NewOrderPage() {
 
   return (
     <form onSubmit={submit} noValidate>
-      <Link href="/admin/orders" className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel">
+      <Link
+        href="/admin/orders"
+        className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel"
+      >
         <ArrowLeft size={16} /> All orders
       </Link>
       <h1 className="mt-2 text-4xl lg:text-5xl">New order</h1>
@@ -294,12 +311,27 @@ export default function NewOrderPage() {
           </select>
           {couponProblem && <p className="field-error">{couponProblem}</p>}
 
+          <label htmlFor="reference" className="field-label mt-5">
+            Easypaisa transaction ID <span className="font-normal text-umber">(optional)</span>
+          </label>
+          <input
+            id="reference"
+            value={reference}
+            onChange={e => setReference(e.target.value)}
+            placeholder="From the payment you received"
+            className="field"
+          />
+          <p className="mt-1.5 text-sm text-umber">Enter the order once the payment has reached your account.</p>
+
           <dl className="mt-6 space-y-2">
             <Row label="Subtotal" value={formatPKR(subtotal)} />
             {couponDiscount > 0 && <Row label={`Coupon ${usable!.code}`} value={`− ${formatPKR(couponDiscount)}`} />}
-            <Row label="Delivery" value={picked.length === 0 ? 'Add a candle' : shipping === 0 ? 'Free' : formatPKR(shipping)} />
+            <Row
+              label="Delivery"
+              value={picked.length === 0 ? 'Add a candle' : shipping === 0 ? 'Free' : formatPKR(shipping)}
+            />
             <div className="flex items-baseline justify-between border-t border-espresso pt-3">
-              <dt className="font-medium">Cash on delivery</dt>
+              <dt className="font-medium">Total, paid by Easypaisa</dt>
               <dd className="font-display text-3xl">{formatPKR(total)}</dd>
             </div>
           </dl>
@@ -312,7 +344,17 @@ export default function NewOrderPage() {
   )
 }
 
-function Field({ id, label, error, children }: { id: string; label: string; error?: string; children: React.ReactNode }) {
+function Field({
+  id,
+  label,
+  error,
+  children,
+}: {
+  id: string
+  label: string
+  error?: string
+  children: React.ReactNode
+}) {
   return (
     <div>
       <label htmlFor={id} className="field-label">

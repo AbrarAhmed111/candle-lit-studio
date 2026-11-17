@@ -27,7 +27,10 @@ function Document() {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href={`/admin/orders/${order.number}`} className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel">
+        <Link
+          href={`/admin/orders/${order.number}`}
+          className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel"
+        >
           <ArrowLeft size={16} /> Back to {order.number}
         </Link>
         <div className="flex flex-wrap gap-2">
@@ -114,10 +117,13 @@ function Document() {
           </thead>
           <tbody>
             {order.lines.map(l => (
-              <tr key={l.productId + l.variant} className="border-b border-neutral-300">
+              <tr key={l.productId + l.variant + (l.colour ?? '')} className="border-b border-neutral-300">
                 <td className="py-3">
                   {l.name}
-                  <span className="block text-sm text-neutral-600">{l.variant}</span>
+                  <span className="block text-sm text-neutral-600">
+                    {l.variant}
+                    {l.colour && `, ${l.colour}`}
+                  </span>
                 </td>
                 <td className="py-3 text-right tabular-nums">{l.qty}</td>
                 {slip ? (
@@ -136,7 +142,11 @@ function Document() {
         </table>
 
         {slip ? (
-          <p className="mt-6 text-lg font-semibold">Cash to collect on delivery: {formatPKR(order.total)}</p>
+          <p className="mt-6 text-lg font-semibold">
+            {order.paymentMethod === 'Easypaisa'
+              ? `Paid by Easypaisa: ${formatPKR(order.total)}. Collect nothing.`
+              : `Cash to collect on delivery: ${formatPKR(order.total)}`}
+          </p>
         ) : (
           <dl className="ml-auto mt-6 max-w-xs space-y-1.5">
             <div className="flex justify-between">
@@ -154,7 +164,7 @@ function Document() {
               <dd className="tabular-nums">{order.shipping === 0 ? 'Free' : formatPKR(order.shipping)}</dd>
             </div>
             <div className="flex justify-between border-t border-black pt-2 text-lg font-semibold">
-              <dt>Cash to collect</dt>
+              <dt>{order.paymentMethod === 'Easypaisa' ? 'Total, paid by Easypaisa' : 'Cash to collect'}</dt>
               <dd className="tabular-nums">{formatPKR(order.total)}</dd>
             </div>
           </dl>

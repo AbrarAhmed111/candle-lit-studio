@@ -35,12 +35,12 @@ export function EmailStatus({ live, overview }: { live: boolean; overview: Email
       )}
     >
       {!live
-        ? 'Demo mode: nothing is sent. Emails go out once Supabase and the SMTP settings are connected.'
+        ? 'Automatic emails are switched off on this copy of the store.'
         : !overview
           ? 'Checking the email setup…'
           : ready
-            ? 'Email is on. Switched-on emails below are sent automatically. WhatsApp messages are not sent yet.'
-            : `Email is not sending yet. Add ${[!overview.smtp && 'the SMTP settings', !overview.serviceKey && 'SUPABASE_SERVICE_ROLE_KEY'].filter(Boolean).join(' and ')} to the environment.`}
+            ? 'Email is on. Switched-on emails below are sent automatically.'
+            : 'Email sending is not set up yet. Ask your website developer to finish the email setup.'}
     </p>
   )
 }
@@ -50,8 +50,7 @@ const tone = { sent: 'bg-sage/15 text-sage', failed: 'bg-wine/10 text-wine', ski
 export default function EmailLog({ overview, reload }: { overview: EmailOverview | null; reload: () => void }) {
   const { templates } = useAdmin()
   const [failedOnly, setFailedOnly] = useState(false)
-  const name = (id: string) =>
-    id === 'newsletter' ? 'Newsletter' : id.startsWith('test:') ? 'Test email' : (templates.find(t => t.id === id)?.name ?? id)
+  const name = (id: string) => (id === 'newsletter' ? 'Newsletter' : (templates.find(t => t.id === id)?.name ?? id))
   const shown = (overview?.log ?? []).filter(e => !failedOnly || e.status === 'failed')
 
   return (
@@ -65,7 +64,12 @@ export default function EmailLog({ overview, reload }: { overview: EmailOverview
         </div>
         <div className="flex items-center gap-4">
           <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
-            <input type="checkbox" checked={failedOnly} onChange={e => setFailedOnly(e.target.checked)} className="h-4 w-4 accent-caramel" />
+            <input
+              type="checkbox"
+              checked={failedOnly}
+              onChange={e => setFailedOnly(e.target.checked)}
+              className="h-4 w-4 accent-caramel"
+            />
             Failed only
           </label>
           <button type="button" onClick={reload} className="btn-outline min-h-11 px-4 text-sm">
@@ -98,7 +102,9 @@ export default function EmailLog({ overview, reload }: { overview: EmailOverview
                   <td className="px-4 py-3 text-sm">{e.to}</td>
                   <td className="px-4 py-3 text-sm">{e.orderNumber ?? ''}</td>
                   <td className="px-4 py-3">
-                    <span className={clsx('rounded-full px-2.5 py-1 text-sm font-medium', tone[e.status])}>{e.status}</span>
+                    <span className={clsx('rounded-full px-2.5 py-1 text-sm font-medium', tone[e.status])}>
+                      {e.status}
+                    </span>
                     {e.error && <span className="mt-1 block max-w-xs text-sm text-wine">{e.error}</span>}
                     {e.attempts > 1 && <span className="mt-1 block text-xs text-umber">{e.attempts} attempts</span>}
                   </td>

@@ -9,14 +9,19 @@ import {
   adminDeleteProduct,
   adminLog,
   adminSaveProduct,
+  adminSaveContent,
   adminSaveSettings,
   adminSyncList,
+  adminReviewPayment,
   adminUpdateOrder,
   loadAdminData,
+  type AdminSnapshot,
 } from '@/lib/actions/admin'
 import { buildCustomers, buildOrders, withHistory, type AdminCustomer, type AdminOrder } from '@/data/admin'
 import { localOrders } from '@/lib/orders'
 import { seedShop } from '@/data/admin-seed'
+import { useLiveUpdates } from './useLiveUpdates'
+import type { SiteContent } from '@/data/content'
 
 export { seedShop }
 import type { Category, Coupon, Product, Review } from '@/types'
@@ -28,7 +33,7 @@ const CREATED_KEY = 'cls_admin_created' // orders entered by hand in the dashboa
 export type AdminProduct = Product & { active: boolean }
 export type AdminCoupon = Coupon & { active: boolean; used: number; maxUses?: number }
 export type ReviewStatus = 'Pending' | 'Approved' | 'Rejected'
-export type AdminReview = Review & { status: ReviewStatus }
+export type AdminReview = Review & { status: ReviewStatus; reports?: number }
 
 export type Campaign = {
   id: string
@@ -54,7 +59,36 @@ export type Settings = {
   freeShippingOver: number
   deliveryEstimate: string
   couriers: { name: string; trackingUrl: string; active: boolean }[]
+  /** A size counts as low with this many or fewer left */
+  lowStockThreshold: number
+  /** Days after delivery before the review request email */
+  reviewRequestDays: number
+  /** Hours a cart waits before the reminder email */
+  abandonedCartHours: number
+  invoicePrefix: string
+  /** Easypaisa account customers outside Quetta pay into */
+  easypaisaName: string
+  easypaisaNumber: string
+  /** Not used: kept so saved settings load */
+  whatsappEnabled: boolean
 }
+
+/** Delivery fee for one city, or one area of a city */
+export type ShippingRate = {
+  id: string
+  city: string
+  /** Empty means the whole city */
+  area: string
+  fee: number
+  /** Free delivery above this cart value here. Empty uses the store setting. */
+  freeOver?: number
+  active: boolean
+}
+
+export type CustomerStatus = 'Active' | 'VIP' | 'Blocked'
+
+/** The team's notes about one customer, keyed by mobile number */
+export type CustomerNote = { phone: string; note: string; status: CustomerStatus }
 
 export type ActivityEntry = { at: string; text: string }
 
@@ -68,6 +102,8 @@ export type TeamMember = {
   /** Modules a manager may open. Administrators always have all of them. */
   modules: string[]
   active: boolean
+  /** True once they have signed in to the dashboard */
+  joined?: boolean
 }
 
 export type MessageTemplate = {
@@ -81,6 +117,9 @@ export type MessageTemplate = {
   subject?: string
   body: string
   active: boolean
+  /** WhatsApp only: the template approved in WhatsApp Manager */
+  waTemplate?: string
+  waLanguage?: string
 }
 
 export type Subscriber = {
@@ -97,6 +136,8 @@ export type NewsletterDraft = {
   body: string
   segment: string
   savedAt: string
+  /** Send automatically at this time (checked once a day) */
+  scheduledFor?: string
   /** Set once the newsletter has gone out */
   sentAt?: string
   sentCount?: number
@@ -113,6 +154,10 @@ export type ContactMessage = {
 }
 
 export type Shop = {
+  shippingRates: ShippingRate[]
+  customerNotes: CustomerNote[]
+  /** Website text: homepage slides, About, FAQ, policies, social links, SEO */
+  content: SiteContent
   activity: ActivityEntry[]
   inbox: ContactMessage[]
   team: TeamMember[]
@@ -140,6 +185,8 @@ type AdminData = Shop & {
   /** Applies a change and records it in the order's history */
   updateOrder: (number: string, patch: Partial<AdminOrder>, event?: string) => void
   addNote: (number: string, text: string) => void
+  /** Approves or rejects an Easypaisa payment. The customer is emailed. */
+  reviewPayment: (number: string, approve: boolean, reason?: string) => void
   /** Adds an order entered by hand, for phone and WhatsApp orders */
   addOrder: (order: AdminOrder) => void
   setProductActive: (id: string, active: boolean) => void
@@ -170,7 +217,9 @@ const save = (key: string, value: unknown) => {
 }
 
 // The field that identifies an item in each list
-const keyOf: Record<Exclude<keyof Shop, 'settings' | 'activity'>, string> = {
+const keyOf: Record<Exclude<keyof Shop, 'settings' | 'activity' | 'content'>, string> = {
+  shippingRates: 'id',
+  customerNotes: 'phone',
   inbox: 'id',
   team: 'id',
   templates: 'id',
@@ -183,7 +232,27 @@ const keyOf: Record<Exclude<keyof Shop, 'settings' | 'activity'>, string> = {
   reviews: 'id',
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// The last dashboard data, kept for this browser tab only, so reopening the
+// dashboard shows it instantly while fresh data loads. Cleared on sign-out.
+export const LIVE_CACHE_KEY = 'cls_admin_live'
+
+const readCache = (): AdminSnapshot | null => {
+  try {
+    const text = sessionStorage.getItem(LIVE_CACHE_KEY)
+    return text ? (JSON.parse(text) as AdminSnapshot) : null
+  } catch {
+    return null
+  }
+}
+
+const writeCache = (data: AdminSnapshot) => {
+  try {
+    sessionStorage.setItem(LIVE_CACHE_KEY, JSON.stringify(data))
+  } catch {
+    // Full or blocked storage: the dashboard simply loads without the head start
+  }
+}
+
 /** What changed between two versions of a list */
 const diff = (prev: any[], next: any[], field: string) => {
   const before = new Map(prev.map(item => [item[field], JSON.stringify(item)]))
@@ -208,23 +277,39 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
   const shopRef = useRef(shop)
   const ordersRef = useRef(orders)
 
-  const fetchLive = useCallback(async () => {
-    const result = await loadAdminData()
-    if (!result.ok) {
-      setLoadError(result.error)
-      setOrders([])
-      return
-    }
-    setLoadError(null)
-    shopRef.current = result.data.shop
-    setShopState(result.data.shop)
-    ordersRef.current = result.data.orders
-    setOrders(result.data.orders)
+  const apply = useCallback((data: AdminSnapshot) => {
+    shopRef.current = data.shop
+    setShopState(data.shop)
+    ordersRef.current = data.orders
+    setOrders(data.orders)
   }, [])
+
+  /** Loads everything. A quiet reload (after a live change) keeps the current data if it fails. */
+  const fetchLive = useCallback(
+    async (quiet = false) => {
+      const result = await loadAdminData()
+      if (!result.ok) {
+        if (quiet) return
+        setLoadError(result.error)
+        setOrders([])
+        return
+      }
+      setLoadError(null)
+      apply(result.data)
+      writeCache(result.data)
+    },
+    [apply],
+  )
+
+  // New orders, payments and messages appear without a page refresh
+  useLiveUpdates(live, () => fetchLive(true))
 
   useEffect(() => {
     if (live) {
-      fetchLive()
+      // Show the last copy at once, then bring it up to date in the background
+      const cached = readCache()
+      if (cached) apply(cached)
+      fetchLive(Boolean(cached))
       return
     }
     const edited = load<Record<string, AdminOrder>>(ORDERS_KEY, {})
@@ -242,7 +327,7 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
       shopRef.current = merged
       setShopState(merged)
     }
-  }, [live, fetchLive])
+  }, [live, fetchLive, apply])
 
   /** Runs a database write. A failure tells the owner and reloads the true state. */
   const persist = useCallback(
@@ -259,15 +344,18 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
     [fetchLive],
   )
 
-  const change = useCallback((number: string, apply: (o: AdminOrder) => AdminOrder) => {
-    const current = ordersRef.current
-    if (!current) return
-    const next = current.map(o => (o.number === number ? apply(o) : o))
-    ordersRef.current = next
-    setOrders(next)
-    const changed = next.find(o => o.number === number)
-    if (changed && !live) save(ORDERS_KEY, { ...load(ORDERS_KEY, {}), [number]: changed })
-  }, [live])
+  const change = useCallback(
+    (number: string, apply: (o: AdminOrder) => AdminOrder) => {
+      const current = ordersRef.current
+      if (!current) return
+      const next = current.map(o => (o.number === number ? apply(o) : o))
+      ordersRef.current = next
+      setOrders(next)
+      const changed = next.find(o => o.number === number)
+      if (changed && !live) save(ORDERS_KEY, { ...load(ORDERS_KEY, {}), [number]: changed })
+    },
+    [live],
+  )
 
   const updateOrder = useCallback<AdminData['updateOrder']>(
     (number, patch, event) => {
@@ -289,6 +377,27 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
     [change, live, persist],
   )
 
+  const reviewPayment = useCallback<AdminData['reviewPayment']>(
+    (number, approve, reason = '') => {
+      const now = new Date().toISOString()
+      change(number, o => ({
+        ...o,
+        paymentStatus: approve ? 'Paid' : 'Payment Rejected',
+        payment: {
+          ...o.payment,
+          verifiedAt: approve ? now : undefined,
+          rejectionReason: approve ? undefined : reason,
+        },
+        history: [
+          ...o.history,
+          { at: now, text: approve ? 'Easypaisa payment approved' : `Easypaisa payment rejected: ${reason}` },
+        ],
+      }))
+      if (live) persist(() => adminReviewPayment(number, approve, reason))
+    },
+    [change, live, persist],
+  )
+
   const setShop = useCallback<AdminData['setShop']>(
     (key, apply) => {
       const prev = shopRef.current
@@ -301,6 +410,11 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
       }
       if (key === 'settings') {
         persist(() => adminSaveSettings(next.settings))
+      } else if (key === 'content') {
+        const changed = (Object.keys(next.content) as (keyof SiteContent)[]).filter(
+          k => JSON.stringify(next.content[k]) !== JSON.stringify(prev.content[k]),
+        )
+        if (changed.length) persist(() => adminSaveContent(Object.fromEntries(changed.map(k => [k, next.content[k]]))))
       } else if (key === 'activity') {
         const known = new Set(prev.activity.map(a => a.at + a.text))
         const added = next.activity.filter(a => !known.has(a.at + a.text))
@@ -319,7 +433,7 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
           return { ok: true }
         })
       } else {
-        const listKey = key as Exclude<keyof Shop, 'settings' | 'activity' | 'products'>
+        const listKey = key as Exclude<keyof Shop, 'settings' | 'activity' | 'products' | 'content'>
         const changes = diff(prev[listKey] as any[], next[listKey] as any[], keyOf[listKey])
         if (changes.upsert.length || changes.remove.length) persist(() => adminSyncList(listKey, changes))
       }
@@ -356,9 +470,10 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
       customers: orders ? buildCustomers(orders) : [],
       live,
       loadError,
-      refresh: fetchLive,
+      refresh: () => fetchLive(),
       updateOrder,
       addNote,
+      reviewPayment,
       addOrder,
       setShop,
       setProductActive: (id, active) =>
@@ -372,13 +487,11 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
         ),
       saveProduct: product =>
         setShop('products', list =>
-          list.some(p => p.id === product.id)
-            ? list.map(p => (p.id === product.id ? product : p))
-            : [product, ...list],
+          list.some(p => p.id === product.id) ? list.map(p => (p.id === product.id ? product : p)) : [product, ...list],
         ),
       deleteProduct: id => setShop('products', list => list.filter(p => p.id !== id)),
     }),
-    [shop, orders, live, loadError, fetchLive, updateOrder, addNote, addOrder, setShop],
+    [shop, orders, live, loadError, fetchLive, updateOrder, addNote, reviewPayment, addOrder, setShop],
   )
 
   return <Context.Provider value={value}>{children}</Context.Provider>
@@ -388,6 +501,8 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
 const emptyShop = (): Shop => ({
   ...seedShop(),
   inbox: [],
+  shippingRates: [],
+  customerNotes: [],
   activity: [],
   team: [],
   templates: [],

@@ -6,7 +6,20 @@ import clsx from 'clsx'
 import { useAdmin } from '@/components/admin/AdminData'
 import { adminSendNewsletter } from '@/lib/actions/admin'
 import toast from 'react-hot-toast'
-import { card, dateTime, done, downloadCsv, Empty, input, Kpi, PageHeader, shortDate, td, th } from '@/components/admin/ui'
+import {
+  card,
+  dateTime,
+  done,
+  downloadCsv,
+  Empty,
+  input,
+  Kpi,
+  PageHeader,
+  shortDate,
+  td,
+  th,
+} from '@/components/admin/ui'
+import HowItWorks from '@/components/admin/HowItWorks'
 
 const DAY = 86_400_000
 
@@ -47,7 +60,9 @@ export default function AdminNewsletterPage() {
     setShop('drafts', list =>
       list.map(x => (x.id === draft.id ? { ...x, sentAt: new Date().toISOString(), sentCount: result.data.sent } : x)),
     )
-    done(`Newsletter sent: ${draft.subject}, to ${result.data.sent}${result.data.failed ? `, ${result.data.failed} failed` : ''}`)
+    done(
+      `Newsletter sent: ${draft.subject}, to ${result.data.sent}${result.data.failed ? `, ${result.data.failed} failed` : ''}`,
+    )
   }
 
   const q = query.trim().toLowerCase()
@@ -74,12 +89,28 @@ export default function AdminNewsletterPage() {
   const exportCsv = () =>
     downloadCsv('subscribers.csv', [
       ['Email', 'Name', 'Joined', 'Source', 'Status'],
-      ...shown.map(s => [s.email, s.name ?? '', shortDate(s.joinedAt), s.source, s.subscribed ? 'Subscribed' : 'Unsubscribed']),
+      ...shown.map(s => [
+        s.email,
+        s.name ?? '',
+        shortDate(s.joinedAt),
+        s.source,
+        s.subscribed ? 'Subscribed' : 'Unsubscribed',
+      ]),
     ])
 
   return (
     <>
-      <PageHeader title="Newsletter" text="People who asked to hear from you, and the emails you are preparing for them." />
+      <PageHeader
+        title="Newsletter"
+        text="People who asked to hear from you, and the emails you are preparing for them."
+      />
+      <HowItWorks id="newsletter">
+        <p>
+          Write the email, choose who receives it and save it as a draft. Then press <strong>Send</strong> on the draft,
+          or pick a day for it to go out on its own.
+        </p>
+        <p>Only people who are still subscribed receive it, and every email has its own unsubscribe link.</p>
+      </HowItWorks>
 
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi label="Subscribed" value={String(active.length)} />
@@ -96,8 +127,13 @@ export default function AdminNewsletterPage() {
             <h2 id="subs-h" className="text-3xl">
               Subscribers
             </h2>
-            <button type="button" onClick={exportCsv} disabled={shown.length === 0} className="btn-outline min-h-11 px-5 text-sm">
-              <Download size={16} /> Export {shown.length} to CSV
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={shown.length === 0}
+              className="btn-outline min-h-11 px-5 text-sm"
+            >
+              <Download size={16} /> Export {shown.length} as a spreadsheet
             </button>
           </div>
           <div className="relative mt-4">
@@ -141,7 +177,11 @@ export default function AdminNewsletterPage() {
                           <span className="block text-sm text-umber">{s.source}</span>
                         </td>
                         <td className={`${td} text-right`}>
-                          <button type="button" onClick={() => setSubscribed(s.email, !s.subscribed)} className="link min-h-11 px-2 text-sm">
+                          <button
+                            type="button"
+                            onClick={() => setSubscribed(s.email, !s.subscribed)}
+                            className="link min-h-11 px-2 text-sm"
+                          >
                             {s.subscribed ? 'Unsubscribe' : 'Resubscribe'}
                           </button>
                         </td>
@@ -206,7 +246,7 @@ export default function AdminNewsletterPage() {
             <p className="mt-3 text-sm text-umber">
               {live
                 ? 'Save it, then press Send on the draft. Every email carries its own unsubscribe link.'
-                : 'Sending works once Supabase and email are connected. Every email will carry an unsubscribe link.'}
+                : 'Every email carries its own unsubscribe link.'}
             </p>
           </form>
 
@@ -223,7 +263,7 @@ export default function AdminNewsletterPage() {
                       <p className="text-sm text-umber">
                         {d.sentAt
                           ? `Sent to ${d.sentCount ?? 0} on ${dateTime(d.sentAt)}`
-                          : `To ${d.segment.toLowerCase()} (${segments[d.segment] ?? 0}). Saved ${dateTime(d.savedAt)}`}
+                          : `To ${d.segment.toLowerCase()} (${segments[d.segment] ?? 0}). ${d.scheduledFor ? `Goes out on ${dateTime(d.scheduledFor)}` : `Saved ${dateTime(d.savedAt)}`}`}
                       </p>
                     </div>
                     {live && !d.sentAt && (
@@ -248,15 +288,41 @@ export default function AdminNewsletterPage() {
                     </button>
                   </div>
                   <p className="mt-2 line-clamp-3 whitespace-pre-line text-umber">{d.body}</p>
+                  {live && !d.sentAt && (
+                    <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-umber">
+                      Send automatically on
+                      <input
+                        type="date"
+                        value={d.scheduledFor?.slice(0, 10) ?? ''}
+                        min={new Date().toISOString().slice(0, 10)}
+                        onChange={e => {
+                          const day = e.target.value
+                          // The daily job runs at 11:00 Pakistan time (06:00 UTC)
+                          const scheduledFor = day ? new Date(`${day}T06:00:00Z`).toISOString() : undefined
+                          setShop('drafts', list => list.map(x => (x.id === d.id ? { ...x, scheduledFor } : x)))
+                          done(day ? `${d.subject} scheduled for ${day}` : `${d.subject} no longer scheduled`)
+                        }}
+                        className="min-h-10 rounded-xl border border-hairline bg-linen px-3 text-espresso"
+                      />
+                      <span className="text-xs">It goes out at 11:00 on that day.</span>
+                    </label>
+                  )}
                   {confirming === d.id && (
-                    <div role="alertdialog" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-wax/60 p-3 text-sm">
+                    <div
+                      role="alertdialog"
+                      className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-wax/60 p-3 text-sm"
+                    >
                       <span className="flex-1">
                         Send to {segments[d.segment] ?? 0} {d.segment.toLowerCase()} now? This cannot be undone.
                       </span>
                       <button type="button" onClick={() => send(d)} className="btn-primary min-h-10 px-4 text-sm">
                         Yes, send
                       </button>
-                      <button type="button" onClick={() => setConfirming(null)} className="btn-outline min-h-10 px-4 text-sm">
+                      <button
+                        type="button"
+                        onClick={() => setConfirming(null)}
+                        className="btn-outline min-h-10 px-4 text-sm"
+                      >
                         Cancel
                       </button>
                     </div>

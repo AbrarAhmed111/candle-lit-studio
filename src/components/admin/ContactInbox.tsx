@@ -33,7 +33,12 @@ export default function ContactInbox() {
           </p>
         </div>
         <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
-          <input type="checkbox" checked={showHandled} onChange={e => setShowHandled(e.target.checked)} className="h-4 w-4 accent-caramel" />
+          <input
+            type="checkbox"
+            checked={showHandled}
+            onChange={e => setShowHandled(e.target.checked)}
+            className="h-4 w-4 accent-caramel"
+          />
           Show answered messages
         </label>
       </div>
@@ -59,7 +64,10 @@ export default function ContactInbox() {
                     {phone && (
                       <>
                         <a
-                          href={whatsappLink(phone, `Assalam o alaikum ${m.name.split(' ')[0]}, thank you for writing to us.`)}
+                          href={whatsappLink(
+                            phone,
+                            `Assalam o alaikum ${m.name.split(' ')[0]}, thank you for writing to us.`,
+                          )}
                           target="_blank"
                           rel="noreferrer"
                           className="btn-outline min-h-10 px-4 text-sm"
@@ -76,7 +84,11 @@ export default function ContactInbox() {
                         <Mail size={15} /> Email
                       </a>
                     )}
-                    <button type="button" onClick={() => mark(m.id, !m.handled)} className="link ml-auto min-h-10 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => mark(m.id, !m.handled)}
+                      className="link ml-auto min-h-10 text-sm"
+                    >
                       {m.handled ? 'Mark as waiting' : 'Mark as answered'}
                     </button>
                   </div>

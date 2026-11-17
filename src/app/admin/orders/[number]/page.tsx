@@ -3,15 +3,33 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { FormEvent, useState } from 'react'
-import { ArrowLeft, Copy, ExternalLink, Printer, Truck } from 'lucide-react'
+import { ArrowLeft, Copy, Download, ExternalLink, Pencil, Printer, RotateCcw, Truck } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { useAdmin } from '@/components/admin/AdminData'
-import { card, dateTime, Empty, input, Loading, PaymentBadge, StatusBadge, whatsappLink, done } from '@/components/admin/ui'
-import Modal from '@/components/store/Modal'
+import {
+  card,
+  dateTime,
+  Empty,
+  input,
+  Loading,
+  PaymentBadge,
+  StatusBadge,
+  whatsappLink,
+  done,
+  doneWithUndo,
+} from '@/components/admin/ui'
+import CancelDialog from '@/components/admin/order/CancelDialog'
+import CodPanel from '@/components/admin/order/CodPanel'
+import DispatchDialog from '@/components/admin/order/DispatchDialog'
+import EasypaisaPanel from '@/components/admin/order/EasypaisaPanel'
+import EditItemsDialog from '@/components/admin/order/EditItemsDialog'
+import OrderMessages from '@/components/admin/order/OrderMessages'
+import { Field, Row } from '@/components/admin/order/parts'
 import { orderFlow, type AdminOrder } from '@/data/admin'
 import { formatPKR } from '@/lib/pricing'
+import { awaitingPayment } from '@/lib/payments'
 import type { OrderStatus } from '@/types'
 
 // The one obvious next step for each status
@@ -20,12 +38,18 @@ const nextStep: Partial<Record<OrderStatus, { to: OrderStatus; label: string; ev
   Confirmed: { to: 'Processing', label: 'Start preparing', event: 'Preparation started' },
   Processing: { to: 'Packed', label: 'Mark as packed', event: 'Order packed' },
   Dispatched: { to: 'Delivered', label: 'Mark as delivered', event: 'Marked as delivered' },
+  'Failed Delivery': { to: 'Dispatched', label: 'Send out again', event: 'Sent out for delivery again' },
 }
+
+// Statuses where the candles can still be changed
+const editable: OrderStatus[] = ['Pending Confirmation', 'Confirmed', 'Processing', 'Packed', 'Cancellation Requested']
+const closed: OrderStatus[] = ['Delivered', 'Cancelled', 'Returned']
 
 export default function AdminOrderPage() {
   const { number } = useParams<{ number: string }>()
-  const { orders, updateOrder, addNote } = useAdmin()
-  const [dialog, setDialog] = useState<'dispatch' | 'cancel' | null>(null)
+  const { orders, updateOrder, addNote, settings } = useAdmin()
+  const [dialog, setDialog] = useState<'dispatch' | 'cancel' | 'edit' | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
   const [note, setNote] = useState('')
 
   if (!orders) return <Loading />
@@ -43,15 +67,48 @@ export default function AdminOrderPage() {
     )
   }
 
-  const step = nextStep[order.status]
-  const reached = orderFlow.indexOf(order.status)
-  const open = order.status !== 'Delivered' && order.status !== 'Cancelled'
+  // An Easypaisa order moves forward only once its payment is approved
+  const unpaid = awaitingPayment(order) && order.status !== 'Cancelled'
+  const step = unpaid ? undefined : nextStep[order.status]
+  const reached =
+    order.status === 'Failed Delivery'
+      ? orderFlow.indexOf('Dispatched')
+      : order.status === 'Cancellation Requested'
+        ? -1
+        : orderFlow.indexOf(order.status)
+  const open = !closed.includes(order.status)
   const firstName = order.customer.name.split(' ')[0]
 
   const advance = () => {
     if (!step) return
+    const before = order.status
     updateOrder(order.number, { status: step.to }, step.event)
-    done(`${order.number}: ${step.to}`)
+    doneWithUndo(`${order.number}: ${step.to}`, () =>
+      updateOrder(order.number, { status: before }, `Undone: back to ${before}`),
+    )
+  }
+
+  const setStatus = (status: OrderStatus, event: string, extra: Partial<AdminOrder> = {}) => {
+    const before = order.status
+    updateOrder(order.number, { status, ...extra }, event)
+    // Cancelling and returning put stock back, so they are confirmed first and not undone here
+    if (status === 'Cancelled' || status === 'Returned') done(`${order.number}: ${status}`)
+    else
+      doneWithUndo(`${order.number}: ${status}`, () =>
+        updateOrder(order.number, { status: before }, `Undone: back to ${before}`),
+      )
+  }
+
+  const pdf = async (kind: 'invoice' | 'slip') => {
+    setPdfBusy(true)
+    try {
+      // The PDF maker is large, so it loads only when someone asks for a PDF
+      const { downloadInvoice } = await import('@/lib/invoice')
+      await downloadInvoice(order, settings, kind)
+    } catch {
+      toast.error('The PDF could not be made. Use Print instead.')
+    }
+    setPdfBusy(false)
   }
 
   const saveNote = (e: FormEvent) => {
@@ -73,7 +130,10 @@ export default function AdminOrderPage() {
 
   return (
     <>
-      <Link href="/admin/orders" className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel">
+      <Link
+        href="/admin/orders"
+        className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel"
+      >
         <ArrowLeft size={16} /> All orders
       </Link>
 
@@ -97,13 +157,39 @@ export default function AdminOrderPage() {
               <Truck size={17} /> Dispatch order
             </button>
           )}
-          <Link href={`/admin/orders/${order.number}/print`} className="btn-outline">
-            <Printer size={17} /> Invoice
+          {order.status === 'Dispatched' && (
+            <button
+              type="button"
+              onClick={() => setStatus('Failed Delivery', 'Courier could not deliver')}
+              className="btn-outline"
+            >
+              Delivery failed
+            </button>
+          )}
+          {(order.status === 'Failed Delivery' || order.status === 'Delivered') && (
+            <button
+              type="button"
+              onClick={() => setStatus('Returned', 'Parcel returned to the studio. Stock put back.')}
+              className="btn-outline"
+            >
+              <RotateCcw size={16} /> Mark as returned
+            </button>
+          )}
+          {editable.includes(order.status) && (
+            <button type="button" onClick={() => setDialog('edit')} className="btn-outline">
+              <Pencil size={16} /> Edit items
+            </button>
+          )}
+          <button type="button" disabled={pdfBusy} onClick={() => pdf('invoice')} className="btn-outline">
+            <Download size={17} /> Invoice PDF
+          </button>
+          <button type="button" disabled={pdfBusy} onClick={() => pdf('slip')} className="btn-outline">
+            <Download size={17} /> Packing slip PDF
+          </button>
+          <Link href={`/admin/orders/${order.number}/print`} className="btn-outline" title="Print the invoice">
+            <Printer size={17} /> Print
           </Link>
-          <Link href={`/admin/orders/${order.number}/print?type=slip`} className="btn-outline">
-            Packing slip
-          </Link>
-          {open && (
+          {open && order.status !== 'Cancellation Requested' && (
             <button type="button" onClick={() => setDialog('cancel')} className="btn-outline">
               Cancel order
             </button>
@@ -111,7 +197,65 @@ export default function AdminOrderPage() {
         </div>
       </div>
 
-      {order.status !== 'Cancelled' ? (
+      {order.status === 'Cancellation Requested' && (
+        <div
+          role="alert"
+          className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-wine/30 bg-wine/5 p-5"
+        >
+          <div>
+            <p className="font-medium text-wine">The customer asked to cancel this order</p>
+            <p className="mt-1 text-umber">
+              {order.cancelRequest?.reason ?? 'No reason given'}
+              {order.cancelRequest?.at && `. Asked ${dateTime(order.cancelRequest.at)}.`}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setStatus('Cancelled', 'Cancellation approved. Stock put back.', {
+                  cancelReason: `Customer asked to cancel: ${order.cancelRequest?.reason ?? 'no reason given'}.`,
+                })
+              }
+              className="btn bg-wine text-ivory before:bg-espresso"
+            >
+              Approve cancellation
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setStatus(unpaid ? 'Pending Confirmation' : 'Confirmed', 'Cancellation refused, order kept')
+              }
+              className="btn-outline"
+            >
+              Keep the order
+            </button>
+          </div>
+        </div>
+      )}
+
+      {unpaid && order.status !== 'Cancellation Requested' && (
+        <p role="status" className="mt-6 rounded-2xl bg-ember/20 p-4 text-toffee">
+          {order.paymentStatus === 'Payment Rejected'
+            ? 'Waiting for the customer to send new Easypaisa details. The order stays on hold until then.'
+            : 'Check the Easypaisa payment below first. Once you approve it, you can confirm the order.'}{' '}
+          <a href="#pay-h" className="link">
+            Go to the payment
+          </a>
+        </p>
+      )}
+
+      {order.status === 'Failed Delivery' && (
+        <p className="mt-6 rounded-2xl bg-ember/20 p-4 text-toffee">
+          The courier could not deliver this order. Call the customer, then send it out again or mark it as returned.
+        </p>
+      )}
+
+      {order.status === 'Returned' ? (
+        <p className="mt-6 rounded-2xl bg-wine/10 p-4 text-wine">
+          Returned to the studio. The candles are back in stock.
+        </p>
+      ) : order.status === 'Cancellation Requested' ? null : order.status !== 'Cancelled' ? (
         <>
           {/* Phones hide the step names, so name the current one here */}
           <p className="mt-6 text-sm text-umber sm:hidden">
@@ -148,11 +292,15 @@ export default function AdminOrderPage() {
             </h2>
             <ul className="divide-y divide-hairline border-y border-hairline">
               {order.lines.map(l => (
-                <li key={l.productId + l.variant} className="flex items-baseline justify-between gap-4 px-5 py-3.5 sm:px-6">
+                <li
+                  key={l.productId + l.variant + (l.colour ?? '')}
+                  className="flex items-baseline justify-between gap-4 px-5 py-3.5 sm:px-6"
+                >
                   <span>
                     <span className="font-medium">{l.name}</span>
                     <span className="block text-sm text-umber">
-                      {l.variant}, {l.qty} × {formatPKR(l.unitPrice)}
+                      {l.variant}
+                      {l.colour && `, ${l.colour}`}, {l.qty} × {formatPKR(l.unitPrice)}
                       {l.unitPrice < l.originalPrice && <s className="ml-2">{formatPKR(l.originalPrice)}</s>}
                     </span>
                   </span>
@@ -167,7 +315,9 @@ export default function AdminOrderPage() {
               )}
               <Row label="Delivery" value={order.shipping === 0 ? 'Free' : formatPKR(order.shipping)} />
               <div className="flex items-baseline justify-between border-t border-espresso pt-3">
-                <dt className="font-medium">COD amount to collect</dt>
+                <dt className="font-medium">
+                  {order.paymentMethod === 'Easypaisa' ? 'Total' : 'COD amount to collect'}
+                </dt>
                 <dd className="font-display text-2xl">{formatPKR(order.total)}</dd>
               </div>
             </dl>
@@ -195,7 +345,12 @@ export default function AdminOrderPage() {
                   <button type="button" onClick={copyTracking} className="btn-outline min-h-11 px-4 text-sm">
                     <Copy size={15} /> Copy tracking ID
                   </button>
-                  <a href={order.shipment.trackingUrl} target="_blank" rel="noreferrer" className="btn-outline min-h-11 px-4 text-sm">
+                  <a
+                    href={order.shipment.trackingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-outline min-h-11 px-4 text-sm"
+                  >
                     Open {order.shipment.courier} tracking <ExternalLink size={15} />
                   </a>
                 </div>
@@ -207,40 +362,7 @@ export default function AdminOrderPage() {
             )}
           </section>
 
-          <section className={`${card} p-5 sm:p-6`} aria-labelledby="pay-h">
-            <h2 id="pay-h" className="text-2xl">
-              COD payment
-            </h2>
-            <p className="mt-3 text-umber">
-              {order.status === 'Cancelled'
-                ? 'Nothing to collect for a cancelled order.'
-                : order.status !== 'Delivered'
-                  ? `${formatPKR(order.total)} will be collected by the courier at the door. You can record it once the order is delivered.`
-                  : order.paymentStatus === 'Pending Collection'
-                    ? `Delivered, but the cash is not recorded yet. Record it when the courier confirms they collected ${formatPKR(order.total)}.`
-                    : order.paymentStatus === 'Collected by Courier'
-                      ? `The courier holds ${formatPKR(order.total)}. Record the settlement when it reaches your account.`
-                      : `${formatPKR(order.total)} has been settled to the business.`}
-            </p>
-            {order.status === 'Delivered' && order.paymentStatus === 'Pending Collection' && (
-              <button
-                type="button"
-                onClick={() => updateOrder(order.number, { paymentStatus: 'Collected by Courier' }, 'COD recorded as collected by the courier')}
-                className="btn-primary mt-4"
-              >
-                Record cash collected by courier
-              </button>
-            )}
-            {order.status === 'Delivered' && order.paymentStatus === 'Collected by Courier' && (
-              <button
-                type="button"
-                onClick={() => updateOrder(order.number, { paymentStatus: 'Settled to Business' }, 'COD settlement received from the courier')}
-                className="btn-primary mt-4"
-              >
-                Record settlement received
-              </button>
-            )}
-          </section>
+          {order.paymentMethod === 'Easypaisa' ? <EasypaisaPanel order={order} /> : <CodPanel order={order} />}
         </div>
 
         <div className="space-y-6">
@@ -262,6 +384,7 @@ export default function AdminOrderPage() {
               {order.customer.address}
               <br />
               {order.customer.area}, {order.customer.city}
+              {order.customer.postalCode && ` ${order.customer.postalCode}`}
               {order.customer.landmark && (
                 <>
                   <br />
@@ -325,6 +448,8 @@ export default function AdminOrderPage() {
             </form>
           </section>
 
+          <OrderMessages number={order.number} hasEmail={!!order.customer.email} />
+
           <section className={`${card} p-5 sm:p-6`} aria-labelledby="hist-h">
             <h2 id="hist-h" className="text-2xl">
               History
@@ -350,150 +475,7 @@ export default function AdminOrderPage() {
 
       <DispatchDialog order={order} open={dialog === 'dispatch'} onClose={() => setDialog(null)} />
       <CancelDialog order={order} open={dialog === 'cancel'} onClose={() => setDialog(null)} />
+      {dialog === 'edit' && <EditItemsDialog order={order} onClose={() => setDialog(null)} />}
     </>
-  )
-}
-
-function DispatchDialog({ order, open, onClose }: { order: AdminOrder; open: boolean; onClose: () => void }) {
-  const { updateOrder, settings } = useAdmin()
-  // Couriers switched on in Settings, plus the one already on this order
-  const couriers = settings.couriers.filter(c => c.active || c.name === order.shipment?.courier)
-  const [courier, setCourier] = useState(order.shipment?.courier ?? couriers[0]?.name ?? '')
-  const [trackingId, setTrackingId] = useState(order.shipment?.trackingId ?? '')
-  const [error, setError] = useState('')
-  const editing = Boolean(order.shipment)
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    const id = trackingId.trim()
-    if (!courier) return setError('Switch on at least one courier in Settings first.')
-    if (id.length < 6) return setError('Enter the tracking ID from the courier slip, at least 6 characters.')
-    const trackingUrl = couriers.find(c => c.name === courier)?.trackingUrl ?? ''
-    updateOrder(
-      order.number,
-      {
-        status: editing ? order.status : 'Dispatched',
-        shipment: {
-          courier,
-          trackingId: id,
-          trackingUrl,
-          dispatchedAt: order.shipment?.dispatchedAt ?? new Date().toISOString(),
-        },
-      },
-      editing ? `Shipment updated: ${courier}, tracking ${id}` : `Dispatched with ${courier}, tracking ${id}`,
-    )
-    done(editing ? 'Shipment updated' : `${order.number} dispatched`)
-    onClose()
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} label={editing ? 'Edit shipment' : 'Dispatch order'} className="max-w-md rounded-[2rem] bg-ivory p-6 shadow-2xl sm:p-8">
-      <form onSubmit={submit} noValidate>
-        <h2 className="pr-10 text-3xl">{editing ? 'Edit shipment' : `Dispatch ${order.number}`}</h2>
-        <p className="mt-2 text-umber">
-          {editing
-            ? 'Correct the courier or tracking ID. The change is recorded in the order history.'
-            : 'The customer sees the courier and tracking ID on their order page.'}
-        </p>
-        <label htmlFor="courier" className="field-label mt-6">
-          Courier
-        </label>
-        <select id="courier" value={courier} onChange={e => setCourier(e.target.value)} className="field">
-          {couriers.map(c => (
-            <option key={c.name}>{c.name}</option>
-          ))}
-        </select>
-        <label htmlFor="tracking" className="field-label mt-4">
-          Tracking ID
-        </label>
-        <input
-          id="tracking"
-          value={trackingId}
-          onChange={e => {
-            setTrackingId(e.target.value)
-            setError('')
-          }}
-          aria-invalid={!!error}
-          aria-describedby={error ? 'tracking-error' : undefined}
-          className="field"
-        />
-        {error && (
-          <p id="tracking-error" className="field-error">
-            {error}
-          </p>
-        )}
-        <div className="mt-6 flex flex-wrap gap-2">
-          <button type="submit" className="btn-primary flex-1">
-            {editing ? 'Save shipment' : 'Dispatch order'}
-          </button>
-          <button type="button" onClick={onClose} className="btn-outline">
-            Not now
-          </button>
-        </div>
-      </form>
-    </Modal>
-  )
-}
-
-const reasons = [
-  'Customer asked to cancel',
-  'Customer did not answer the confirmation calls',
-  'Out of stock',
-  'Duplicate order',
-  'Address outside delivery area',
-]
-
-function CancelDialog({ order, open, onClose }: { order: AdminOrder; open: boolean; onClose: () => void }) {
-  const { updateOrder } = useAdmin()
-  const [reason, setReason] = useState(reasons[0])
-
-  const confirm = () => {
-    updateOrder(order.number, { status: 'Cancelled', cancelReason: `${reason}.` }, `Order cancelled. ${reason}.`)
-    done(`${order.number} cancelled`)
-    onClose()
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} label="Cancel order" className="max-w-md rounded-[2rem] bg-ivory p-6 shadow-2xl sm:p-8">
-      <h2 className="pr-10 text-3xl">Cancel {order.number}?</h2>
-      <p className="mt-2 text-umber">
-        The order for {order.customer.name}, worth {formatPKR(order.total)}, will be marked cancelled. This
-        cannot be undone here.
-      </p>
-      <label htmlFor="reason" className="field-label mt-6">
-        Reason
-      </label>
-      <select id="reason" value={reason} onChange={e => setReason(e.target.value)} className="field">
-        {reasons.map(r => (
-          <option key={r}>{r}</option>
-        ))}
-      </select>
-      <div className="mt-6 flex flex-wrap gap-2">
-        <button type="button" onClick={confirm} className="btn flex-1 bg-wine text-ivory before:bg-espresso">
-          Cancel order
-        </button>
-        <button type="button" onClick={onClose} className="btn-outline">
-          Keep order
-        </button>
-      </div>
-    </Modal>
-  )
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4">
-      <dt className="text-umber">{label}</dt>
-      <dd className="tabular-nums">{value}</dd>
-    </div>
-  )
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-sm text-umber">{label}</dt>
-      <dd className="mt-0.5 font-medium tabular-nums">{value}</dd>
-    </div>
   )
 }
