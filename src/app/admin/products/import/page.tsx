@@ -13,7 +13,16 @@ type Column = (typeof columns)[number]
 
 const sample = [
   columns as unknown as string[],
-  ['Saffron Milk', '220 g', 'CLS-SAFFRON-220', '1900', '20', 'Scented candles', 'Warm saffron threads steeped in sweet milk.', 'Saffron and milk'],
+  [
+    'Saffron Milk',
+    '220 g',
+    'CLS-SAFFRON-220',
+    '1900',
+    '20',
+    'Scented candles',
+    'Warm saffron threads steeped in sweet milk.',
+    'Saffron and milk',
+  ],
   ['Saffron Milk', '400 g', 'CLS-SAFFRON-400', '2950', '8', 'Scented candles', '', ''],
   ['Desi Gulab', '220 g', 'CLS-ROSE-220', '1950', '30', '', '', ''],
 ]
@@ -52,7 +61,11 @@ const parseCsv = (text: string): string[][] => {
 }
 
 const slugify = (text: string) =>
-  text.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  text
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 
 type Checked = {
   line: number
@@ -72,15 +85,19 @@ export default function ImportProductsPage() {
     const header = rows[0].map(h => h.trim().toLowerCase())
     const missing = ['name', 'size', 'sku', 'price', 'stock'].filter(c => !header.includes(c))
     if (missing.length > 0)
-      return { rows: [] as Checked[], headerProblem: `The first row must name the columns. Missing: ${missing.join(', ')}.` }
+      return {
+        rows: [] as Checked[],
+        headerProblem: `The first row must name the columns. Missing: ${missing.join(', ')}.`,
+      }
 
     const bySku = new Map(products.flatMap(p => p.variants.map(v => [v.sku, p] as const)))
     const seen = new Set<string>()
     const newNames = new Set<string>()
     const result = rows.slice(1).map((cells, i): Checked => {
-      const values = Object.fromEntries(
-        columns.map(c => [c, (cells[header.indexOf(c)] ?? '').trim()]),
-      ) as Record<Column, string>
+      const values = Object.fromEntries(columns.map(c => [c, (cells[header.indexOf(c)] ?? '').trim()])) as Record<
+        Column,
+        string
+      >
       values.sku = values.sku.toUpperCase()
       const row = { line: i + 2, values }
       const fail = (problem: string): Checked => ({ ...row, action: 'Error', problem })
@@ -115,8 +132,23 @@ export default function ImportProductsPage() {
   const valid = checked.rows.filter(r => r.action !== 'Error')
   const failed = checked.rows.length - valid.length
 
-  const readFile = (file?: File) => {
+  const [fileError, setFileError] = useState('')
+
+  const readFile = async (file?: File) => {
     if (!file) return
+    setFileError('')
+    if (/\.xlsx$/i.test(file.name)) {
+      // Excel: read the first sheet and turn it into the same rows as a CSV
+      try {
+        const { default: readXlsx } = await import('read-excel-file')
+        const sheet = await readXlsx(file)
+        const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+        setText(sheet.map(row => row.map(cell).join(',')).join('\n'))
+      } catch {
+        setFileError('That Excel file could not be read. Save it again as .xlsx, or as CSV, and try once more.')
+      }
+      return
+    }
     const reader = new FileReader()
     reader.onload = () => setText(String(reader.result ?? ''))
     reader.readAsText(file)
@@ -179,13 +211,16 @@ export default function ImportProductsPage() {
 
   return (
     <>
-      <Link href="/admin/products" className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel">
+      <Link
+        href="/admin/products"
+        className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel"
+      >
         <ArrowLeft size={16} /> All products
       </Link>
       <h1 className="mt-2 text-4xl lg:text-5xl">Import products</h1>
       <p className="mt-2 max-w-2xl text-umber">
-        Add many candles at once, or update prices and stock in bulk. One row per size. A SKU that already exists
-        gets its price and stock updated. Nothing changes until you press Import.
+        Add many candles at once, or update prices and stock in bulk. One row per size. A SKU that already exists gets
+        its price and stock updated. Nothing changes until you press Import.
       </p>
 
       <section className={`${card} mt-8 p-5 sm:p-6`} aria-labelledby="file-h">
@@ -194,13 +229,22 @@ export default function ImportProductsPage() {
         </h2>
         <div className="mt-4 flex flex-wrap gap-2">
           <label className="btn-primary cursor-pointer">
-            <Upload size={17} /> Choose a CSV file
-            <input type="file" accept=".csv,text/csv" className="sr-only" onChange={e => readFile(e.target.files?.[0])} />
+            <Upload size={17} /> Choose an Excel or CSV file
+            <input
+              type="file"
+              accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="sr-only"
+              onChange={e => readFile(e.target.files?.[0])}
+            />
           </label>
           <button type="button" onClick={() => downloadCsv('products-template.csv', sample)} className="btn-outline">
             <Download size={17} /> Download template
           </button>
         </div>
+        <p className="mt-3 text-sm text-umber">
+          Open the template in Excel or Google Sheets, fill one row per size, then save and choose the file here.
+        </p>
+        {fileError && <p className="field-error">{fileError}</p>}
         <label htmlFor="csv" className="field-label mt-5">
           Or paste the rows here
         </label>
@@ -228,7 +272,8 @@ export default function ImportProductsPage() {
               </h2>
               <p className="mt-1 text-umber">
                 {valid.length} {valid.length === 1 ? 'row is' : 'rows are'} ready
-                {failed > 0 && `, ${failed} ${failed === 1 ? 'has a problem and will be skipped' : 'have problems and will be skipped'}`}
+                {failed > 0 &&
+                  `, ${failed} ${failed === 1 ? 'has a problem and will be skipped' : 'have problems and will be skipped'}`}
                 . New products arrive hidden so you can add photos first.
               </p>
             </div>

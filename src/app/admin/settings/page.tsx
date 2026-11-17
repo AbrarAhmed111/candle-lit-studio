@@ -2,9 +2,12 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
-import clsx from 'clsx'
 import { useAdmin } from '@/components/admin/AdminData'
 import { card, PageHeader, done, SaveBar, useLeaveWarning } from '@/components/admin/ui'
+import { ShippingRates, StoreRules } from '@/components/admin/SettingsExtras'
+import EasypaisaAccount from '@/components/admin/EasypaisaAccount'
+import HowItWorks from '@/components/admin/HowItWorks'
+import Switch from '@/components/ui/Switch'
 
 type TextKey =
   | 'name'
@@ -46,7 +49,17 @@ export default function AdminSettingsPage() {
     shippingFee: String(settings.shippingFee),
     freeShippingOver: String(settings.freeShippingOver),
   })
-  const textKeys: TextKey[] = ['name', 'email', 'phone', 'whatsapp', 'address', 'announcement', 'shippingFee', 'freeShippingOver', 'deliveryEstimate']
+  const textKeys: TextKey[] = [
+    'name',
+    'email',
+    'phone',
+    'whatsapp',
+    'address',
+    'announcement',
+    'shippingFee',
+    'freeShippingOver',
+    'deliveryEstimate',
+  ]
   const saved = fromSettings()
   const dirty = loaded && textKeys.some(k => String(values[k] ?? '') !== String(saved[k] ?? ''))
   useLeaveWarning(dirty)
@@ -67,7 +80,8 @@ export default function AdminSettingsPage() {
     const free = Number(values.freeShippingOver)
     const whatsapp = values.whatsapp.replace(/\D/g, '')
     if (values.name.trim().length < 2) return setError('Enter the store name.')
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return setError('Enter an email address like name@example.com.')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email))
+      return setError('Enter an email address like name@example.com.')
     if (!/^92\d{10}$/.test(whatsapp))
       return setError('Enter the WhatsApp number with country code, for example 923001234567.')
     if (!Number.isInteger(fee) || fee < 0) return setError('Enter the delivery fee in whole rupees, 0 or more.')
@@ -113,6 +127,12 @@ export default function AdminSettingsPage() {
   return (
     <>
       <PageHeader title="Settings" text="Store details, delivery charges and the couriers you ship with." />
+      <HowItWorks id="settings">
+        <p>
+          Store details appear in the footer, on invoices and in emails. Delivery fees can be different for some cities.
+          Couriers you switch off disappear from the dispatch form.
+        </p>
+      </HowItWorks>
 
       <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <form onSubmit={submit} noValidate className="space-y-6">
@@ -168,7 +188,9 @@ export default function AdminSettingsPage() {
                 <input {...bind('deliveryEstimate')} />
               </div>
             </div>
-            <p className="mt-4 text-sm text-umber">Payment method: Cash on Delivery only.</p>
+            <p className="mt-4 text-sm text-umber">
+              Payment: Easypaisa for every order. Delivery fees for single cities, like Quetta, are set below.
+            </p>
           </section>
 
           {error && (
@@ -203,21 +225,16 @@ export default function AdminSettingsPage() {
                   <p className="font-medium">{c.name}</p>
                   <p className="truncate text-sm text-umber">{c.trackingUrl}</p>
                 </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={c.active}
-                  aria-label={`Ship with ${c.name}`}
-                  onClick={() =>
+                <Switch
+                  checked={c.active}
+                  onChange={() =>
                     setShop('settings', s => ({
                       ...s,
                       couriers: s.couriers.map(x => (x.name === c.name ? { ...x, active: !x.active } : x)),
                     }))
                   }
-                  className={clsx('relative h-7 w-12 shrink-0 rounded-full transition-colors', c.active ? 'bg-sage' : 'bg-hairline')}
-                >
-                  <span className={clsx('absolute left-1 top-1 h-5 w-5 rounded-full bg-linen transition-transform', c.active && 'translate-x-5')} />
-                </button>
+                  label={`Ship with ${c.name}`}
+                />
                 <button
                   type="button"
                   aria-label={`Remove ${c.name}`}
@@ -262,6 +279,10 @@ export default function AdminSettingsPage() {
             {courierError && <p className="field-error">{courierError}</p>}
           </form>
         </section>
+
+        <EasypaisaAccount />
+        <ShippingRates />
+        <StoreRules />
       </div>
     </>
   )

@@ -1,22 +1,17 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import clsx from 'clsx'
 import { useAdmin, type AdminCoupon, type Campaign } from '@/components/admin/AdminData'
-import { card, Empty, PageHeader, shortDate, td, th, done } from '@/components/admin/ui'
+import { card, Empty, PageHeader, shortDate, td, th } from '@/components/admin/ui'
 import Modal from '@/components/store/Modal'
 import { formatPKR } from '@/lib/pricing'
-import type { Coupon } from '@/types'
-
-const today = () => new Date().toISOString().slice(0, 10)
-
-const describe = (c: Coupon) =>
-  c.type === 'free_shipping'
-    ? 'Free delivery'
-    : c.type === 'percent'
-      ? `${c.value}% off${c.maxDiscount ? `, up to ${formatPKR(c.maxDiscount)}` : ''}`
-      : `${formatPKR(c.value)} off`
+import HowItWorks from '@/components/admin/HowItWorks'
+import Switch from '@/components/ui/Switch'
+import CouponForm from '@/components/admin/discounts/CouponForm'
+import { describe, today } from '@/components/admin/discounts/helpers'
+import SaleForm from '@/components/admin/discounts/SaleForm'
 
 const couponState = (c: AdminCoupon) => {
   if (!c.active) return 'Off'
@@ -45,21 +40,8 @@ const tone: Record<string, string> = {
 }
 
 function State({ value }: { value: string }) {
-  return <span className={clsx('whitespace-nowrap rounded-full px-2.5 py-1 text-sm font-medium', tone[value])}>{value}</span>
-}
-
-function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (on: boolean) => void }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className={clsx('relative h-7 w-12 shrink-0 rounded-full transition-colors', on ? 'bg-sage' : 'bg-hairline')}
-    >
-      <span className={clsx('absolute left-1 top-1 h-5 w-5 rounded-full bg-linen transition-transform', on && 'translate-x-5')} />
-    </button>
+    <span className={clsx('whitespace-nowrap rounded-full px-2.5 py-1 text-sm font-medium', tone[value])}>{value}</span>
   )
 }
 
@@ -71,6 +53,16 @@ export default function AdminDiscountsPage() {
   return (
     <>
       <PageHeader title="Discounts" text="Coupon codes customers type at checkout, and sales that run on a schedule." />
+      <HowItWorks id="discounts">
+        <p>
+          <strong>Coupons</strong> are codes customers type at checkout, like WELCOME10. You can limit a coupon to first
+          orders, to certain candles, or to a number of uses.
+        </p>
+        <p>
+          <strong>Sales</strong> lower prices on their own between two dates, for a few categories or the whole store. A
+          candle never gets a sale and its own discount together: it gets whichever is bigger.
+        </p>
+      </HowItWorks>
 
       <section className="mt-8" aria-labelledby="coupons-h">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -123,9 +115,11 @@ export default function AdminDiscountsPage() {
                       </td>
                       <td className={td}>
                         <Switch
-                          on={c.active}
+                          checked={c.active}
                           label={`${c.code} can be used`}
-                          onChange={active => setShop('coupons', list => list.map(x => (x.code === c.code ? { ...x, active } : x)))}
+                          onChange={active =>
+                            setShop('coupons', list => list.map(x => (x.code === c.code ? { ...x, active } : x)))
+                          }
                         />
                       </td>
                       <td className={`${td} text-right`}>
@@ -141,7 +135,8 @@ export default function AdminDiscountsPage() {
           )}
         </div>
         <p className="mt-3 text-sm text-umber">
-          One coupon per order. A coupon applies after product and sale discounts, never on the delivery fee unless it is a free delivery coupon.
+          One coupon per order. A coupon applies after product and sale discounts, never on the delivery fee unless it
+          is a free delivery coupon.
         </p>
       </section>
 
@@ -151,12 +146,15 @@ export default function AdminDiscountsPage() {
             Sales campaigns
           </h2>
           <button type="button" onClick={() => setCampaign('new')} className="btn-primary">
-            <Plus size={17} /> Add campaign
+            <Plus size={17} /> Add a sale
           </button>
         </div>
         {campaigns.length === 0 ? (
           <div className={`${card} mt-4`}>
-            <Empty title="No campaigns yet" text="Plan an Eid, 11.11 or winter sale and it will start and end on its own." />
+            <Empty
+              title="No campaigns yet"
+              text="Plan an Eid, 11.11 or winter sale and it will start and end on its own."
+            />
           </div>
         ) : (
           <ul className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -190,9 +188,11 @@ export default function AdminDiscountsPage() {
                 <div className="mt-4 flex items-center justify-between gap-3 border-t border-hairline pt-3">
                   <label className="flex items-center gap-3 text-sm">
                     <Switch
-                      on={c.active}
+                      checked={c.active}
                       label={`${c.name} is allowed to run`}
-                      onChange={active => setShop('campaigns', list => list.map(x => (x.id === c.id ? { ...x, active } : x)))}
+                      onChange={active =>
+                        setShop('campaigns', list => list.map(x => (x.id === c.id ? { ...x, active } : x)))
+                      }
                     />
                     {c.active ? 'Allowed to run' : 'Paused'}
                   </label>
@@ -205,284 +205,31 @@ export default function AdminDiscountsPage() {
           </ul>
         )}
         <p className="mt-3 text-sm text-umber">
-          If a product has its own discount and is also in a campaign, the customer gets the bigger of the two, not both.
+          If a product has its own discount and is also in a campaign, the customer gets the bigger of the two, not
+          both.
         </p>
       </section>
 
-      <Modal open={coupon !== null} onClose={() => setCoupon(null)} label="Coupon" className="max-w-lg rounded-[2rem] bg-ivory p-6 shadow-2xl sm:p-8">
+      <Modal
+        open={coupon !== null}
+        onClose={() => setCoupon(null)}
+        label="Coupon"
+        className="max-w-lg rounded-[2rem] bg-ivory p-6 shadow-2xl sm:p-8"
+      >
         {coupon !== null && (
           <CouponForm key={coupon} initial={coupons.find(c => c.code === coupon)} onDone={() => setCoupon(null)} />
         )}
       </Modal>
-      <Modal open={campaign !== null} onClose={() => setCampaign(null)} label="Campaign" className="max-w-lg rounded-[2rem] bg-ivory p-6 shadow-2xl sm:p-8">
+      <Modal
+        open={campaign !== null}
+        onClose={() => setCampaign(null)}
+        label="Sale"
+        className="max-w-lg rounded-[2rem] bg-ivory p-6 shadow-2xl sm:p-8"
+      >
         {campaign !== null && (
-          <CampaignForm key={campaign} initial={campaigns.find(c => c.id === campaign)} onDone={() => setCampaign(null)} />
+          <SaleForm key={campaign} initial={campaigns.find(c => c.id === campaign)} onDone={() => setCampaign(null)} />
         )}
       </Modal>
     </>
-  )
-}
-
-const whole = (text: string) => (text.trim() === '' ? undefined : Number(text))
-
-function CouponForm({ initial, onDone }: { initial?: AdminCoupon; onDone: () => void }) {
-  const { coupons, products, categories, setShop } = useAdmin()
-  const [code, setCode] = useState(initial?.code ?? '')
-  const [firstOrderOnly, setFirstOrderOnly] = useState(initial?.firstOrderOnly ?? false)
-  const [perCustomer, setPerCustomer] = useState(initial?.perCustomerLimit ? String(initial.perCustomerLimit) : '')
-  const [limitTo, setLimitTo] = useState<string[]>(initial?.categories ?? [])
-  const [limitProducts, setLimitProducts] = useState<string[]>(initial?.productIds ?? [])
-  const toggleIn = (list: string[], value: string) =>
-    list.includes(value) ? list.filter(v => v !== value) : [...list, value]
-  const [type, setType] = useState<Coupon['type']>(initial?.type ?? 'percent')
-  const [value, setValue] = useState(initial?.value ? String(initial.value) : '')
-  const [minCart, setMinCart] = useState(initial?.minCart ? String(initial.minCart) : '')
-  const [maxDiscount, setMaxDiscount] = useState(initial?.maxDiscount ? String(initial.maxDiscount) : '')
-  const [maxUses, setMaxUses] = useState(initial?.maxUses ? String(initial.maxUses) : '')
-  const [expiresAt, setExpiresAt] = useState(initial?.expiresAt ?? '')
-  const [error, setError] = useState('')
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    const clean = code.trim().toUpperCase()
-    const amount = Number(value)
-    const optional = [whole(minCart), whole(maxDiscount), whole(maxUses), whole(perCustomer)]
-    if (!/^[A-Z0-9]{3,20}$/.test(clean)) return setError('Use 3 to 20 letters and numbers for the code, no spaces.')
-    if (!initial && coupons.some(c => c.code === clean)) return setError(`${clean} already exists. Choose another code.`)
-    if (type === 'percent' && (!Number.isInteger(amount) || amount < 1 || amount > 90))
-      return setError('Enter a percentage from 1 to 90.')
-    if (type === 'fixed' && (!Number.isInteger(amount) || amount < 1)) return setError('Enter the amount off in whole rupees.')
-    if (optional.some(n => n !== undefined && (!Number.isInteger(n) || n < 1)))
-      return setError('Minimum cart, maximum discount and the use limits must be whole numbers above 0, or left empty.')
-
-    const next: AdminCoupon = {
-      code: clean,
-      type,
-      value: type === 'free_shipping' ? 0 : amount,
-      minCart: optional[0],
-      maxDiscount: type === 'percent' ? optional[1] : undefined,
-      maxUses: optional[2],
-      expiresAt: expiresAt || undefined,
-      firstOrderOnly,
-      perCustomerLimit: optional[3],
-      categories: limitTo,
-      productIds: limitProducts,
-      description: '',
-      active: initial?.active ?? true,
-      used: initial?.used ?? 0,
-    }
-    next.description = describe(next)
-    setShop('coupons', list => (initial ? list.map(c => (c.code === initial.code ? next : c)) : [next, ...list]))
-    done(initial ? `${clean} saved` : `${clean} added`)
-    onDone()
-  }
-
-  const remove = () => {
-    setShop('coupons', list => list.filter(c => c.code !== initial!.code))
-    done(`${initial!.code} deleted`)
-    onDone()
-  }
-
-  const clear = () => setError('')
-
-  return (
-    <form onSubmit={submit} noValidate>
-      <h2 className="pr-10 text-3xl">{initial ? `Edit ${initial.code}` : 'Add coupon'}</h2>
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="field-label mb-0">
-          Code
-          <input value={code} disabled={!!initial} onChange={e => { setCode(e.target.value.toUpperCase()); clear() }} placeholder="WELCOME10" className="field mt-1.5 disabled:opacity-60" />
-        </label>
-        <label className="field-label mb-0">
-          Type
-          <select value={type} onChange={e => { setType(e.target.value as Coupon['type']); clear() }} className="field mt-1.5">
-            <option value="percent">Percentage off</option>
-            <option value="fixed">Fixed amount off</option>
-            <option value="free_shipping">Free delivery</option>
-          </select>
-        </label>
-        {type !== 'free_shipping' && (
-          <label className="field-label mb-0">
-            {type === 'percent' ? 'Percent off' : 'Amount off (Rs.)'}
-            <input inputMode="numeric" value={value} onChange={e => { setValue(e.target.value); clear() }} className="field mt-1.5" />
-          </label>
-        )}
-        {type === 'percent' && (
-          <label className="field-label mb-0">
-            Most it can take off (Rs.), optional
-            <input inputMode="numeric" value={maxDiscount} onChange={e => { setMaxDiscount(e.target.value); clear() }} className="field mt-1.5" />
-          </label>
-        )}
-        <label className="field-label mb-0">
-          Minimum cart (Rs.), optional
-          <input inputMode="numeric" value={minCart} onChange={e => { setMinCart(e.target.value); clear() }} className="field mt-1.5" />
-        </label>
-        <label className="field-label mb-0">
-          Total uses allowed, optional
-          <input inputMode="numeric" value={maxUses} onChange={e => { setMaxUses(e.target.value); clear() }} className="field mt-1.5" />
-        </label>
-        <label className="field-label mb-0">
-          Last day it works, optional
-          <input type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} className="field mt-1.5" />
-        </label>
-        <label className="field-label mb-0">
-          Uses per customer, optional
-          <input inputMode="numeric" value={perCustomer} onChange={e => { setPerCustomer(e.target.value); clear() }} placeholder="1" className="field mt-1.5" />
-        </label>
-        <label className="flex min-h-12 cursor-pointer items-center gap-3 self-end rounded-xl border border-hairline bg-linen px-4 text-[0.95rem]">
-          <input type="checkbox" checked={firstOrderOnly} onChange={e => setFirstOrderOnly(e.target.checked)} className="h-4 w-4 accent-caramel" />
-          First order only
-        </label>
-      </div>
-
-      <fieldset className="mt-5">
-        <legend className="field-label">Works on, optional</legend>
-        <p className="-mt-1 mb-2 text-sm text-umber">Leave everything unticked for the whole store. The discount then applies only to the ticked candles.</p>
-        <div className="flex flex-wrap gap-1.5">
-          {categories.map(c => (
-            <button
-              key={c.slug}
-              type="button"
-              aria-pressed={limitTo.includes(c.slug)}
-              onClick={() => setLimitTo(list => toggleIn(list, c.slug))}
-              className={`min-h-9 rounded-full border px-3 text-sm ${limitTo.includes(c.slug) ? 'border-espresso bg-espresso text-ivory' : 'border-hairline hover:border-espresso'}`}
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
-        <details className="mt-3">
-          <summary className="cursor-pointer text-sm text-umber">
-            Or pick single candles{limitProducts.length ? ` (${limitProducts.length} picked)` : ''}
-          </summary>
-          <div className="mt-2 grid max-h-48 grid-cols-1 gap-1 overflow-y-auto rounded-xl border border-hairline p-2 sm:grid-cols-2">
-            {products.map(p => (
-              <label key={p.id} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm hover:bg-wax/50">
-                <input type="checkbox" checked={limitProducts.includes(p.id)} onChange={() => setLimitProducts(list => toggleIn(list, p.id))} className="h-4 w-4 accent-caramel" />
-                {p.name}
-              </label>
-            ))}
-          </div>
-        </details>
-      </fieldset>
-      {error && (
-        <p role="alert" className="field-error mt-4">
-          {error}
-        </p>
-      )}
-      <div className="mt-6 flex flex-wrap gap-2">
-        <button type="submit" className="btn-primary flex-1">
-          Save coupon
-        </button>
-        {initial && (
-          <button type="button" onClick={remove} className="btn border border-wine text-wine before:bg-wine hover:text-ivory">
-            Delete
-          </button>
-        )}
-      </div>
-    </form>
-  )
-}
-
-function CampaignForm({ initial, onDone }: { initial?: Campaign; onDone: () => void }) {
-  const { categories, setShop } = useAdmin()
-  const [name, setName] = useState(initial?.name ?? '')
-  const [description, setDescription] = useState(initial?.description ?? '')
-  const [startsAt, setStartsAt] = useState(initial?.startsAt ?? today())
-  const [endsAt, setEndsAt] = useState(initial?.endsAt ?? today())
-  const [percent, setPercent] = useState(initial ? String(initial.discountPercent) : '')
-  const [chosen, setChosen] = useState<string[]>(initial?.categories ?? [])
-  const [error, setError] = useState('')
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    const pct = Number(percent)
-    if (name.trim().length < 3) return setError('Enter a campaign name, for example Eid Sale.')
-    if (!Number.isInteger(pct) || pct < 1 || pct > 90) return setError('Enter a discount from 1 to 90 percent.')
-    if (!startsAt || !endsAt || endsAt < startsAt) return setError('The end date must be on or after the start date.')
-    const next: Campaign = {
-      id: initial?.id ?? `c${Date.now()}`,
-      name: name.trim(),
-      description: description.trim(),
-      startsAt,
-      endsAt,
-      discountPercent: pct,
-      categories: chosen,
-      active: initial?.active ?? true,
-    }
-    setShop('campaigns', list => (initial ? list.map(c => (c.id === initial.id ? next : c)) : [next, ...list]))
-    done(initial ? `${next.name} saved` : `${next.name} added`)
-    onDone()
-  }
-
-  const remove = () => {
-    setShop('campaigns', list => list.filter(c => c.id !== initial!.id))
-    done(`${initial!.name} deleted`)
-    onDone()
-  }
-
-  return (
-    <form onSubmit={submit} noValidate>
-      <h2 className="pr-10 text-3xl">{initial ? 'Edit campaign' : 'Add campaign'}</h2>
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="field-label mb-0 sm:col-span-2">
-          Name
-          <input value={name} onChange={e => { setName(e.target.value); setError('') }} placeholder="Eid Sale" className="field mt-1.5" />
-        </label>
-        <label className="field-label mb-0 sm:col-span-2">
-          Message shown on the store banner
-          <textarea rows={2} value={description} onChange={e => setDescription(e.target.value)} className="field mt-1.5 py-3" />
-        </label>
-        <label className="field-label mb-0">
-          First day
-          <input type="date" value={startsAt} onChange={e => { setStartsAt(e.target.value); setError('') }} className="field mt-1.5" />
-        </label>
-        <label className="field-label mb-0">
-          Last day
-          <input type="date" value={endsAt} min={startsAt} onChange={e => { setEndsAt(e.target.value); setError('') }} className="field mt-1.5" />
-        </label>
-        <label className="field-label mb-0">
-          Percent off
-          <input inputMode="numeric" value={percent} onChange={e => { setPercent(e.target.value); setError('') }} className="field mt-1.5" />
-        </label>
-      </div>
-      <fieldset className="mt-4">
-        <legend className="field-label">Applies to. Choose none for the whole store.</legend>
-        <div className="flex flex-wrap gap-2">
-          {categories.map(c => {
-            const on = chosen.includes(c.slug)
-            return (
-              <button
-                key={c.slug}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setChosen(list => (on ? list.filter(s => s !== c.slug) : [...list, c.slug]))}
-                className={clsx(
-                  'min-h-11 rounded-full border px-4 text-sm transition-colors',
-                  on ? 'border-espresso bg-espresso text-ivory' : 'border-hairline hover:border-espresso',
-                )}
-              >
-                {c.name}
-              </button>
-            )
-          })}
-        </div>
-      </fieldset>
-      {error && (
-        <p role="alert" className="field-error mt-4">
-          {error}
-        </p>
-      )}
-      <div className="mt-6 flex flex-wrap gap-2">
-        <button type="submit" className="btn-primary flex-1">
-          Save campaign
-        </button>
-        {initial && (
-          <button type="button" onClick={remove} className="btn border border-wine text-wine before:bg-wine hover:text-ivory">
-            Delete
-          </button>
-        )}
-      </div>
-    </form>
   )
 }

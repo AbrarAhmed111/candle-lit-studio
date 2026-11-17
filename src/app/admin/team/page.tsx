@@ -5,10 +5,23 @@ import { Plus } from 'lucide-react'
 import clsx from 'clsx'
 import { modules, useAdmin, type TeamMember } from '@/components/admin/AdminData'
 import { card, done, PageHeader } from '@/components/admin/ui'
+import { adminInviteTeamMember } from '@/lib/actions/admin'
+import toast from 'react-hot-toast'
 import Modal from '@/components/store/Modal'
 
 export default function AdminTeamPage() {
-  const { team, setShop } = useAdmin()
+  const { team, setShop, live } = useAdmin()
+  const [sending, setSending] = useState<string | null>(null)
+
+  /** Emails the person a link to the dashboard */
+  const invite = async (m: TeamMember) => {
+    if (!live) return
+    setSending(m.id)
+    const result = await adminInviteTeamMember({ name: m.name, email: m.email, role: m.role, modules: m.modules })
+    setSending(null)
+    if (result.ok) toast.success(`Invite emailed to ${m.email}`)
+    else toast.error(result.error, { duration: 8000 })
+  }
   const [editing, setEditing] = useState<string | null>(null) // 'new' or a member id
   const current = team.find(m => m.id === editing)
   const admins = team.filter(m => m.role === 'Administrator' && m.active).length
@@ -21,7 +34,8 @@ export default function AdminTeamPage() {
         </button>
       </PageHeader>
       <p className="mt-6 rounded-2xl bg-wax/60 px-4 py-3 text-[0.95rem] text-umber">
-        Access rules take effect once sign-in is connected. Until then the dashboard is open in demo mode.
+        When you add someone, they get an email invite. They open the dashboard by signing in with that same email
+        address, with Google or with a password.
       </p>
 
       <ul className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -40,7 +54,11 @@ export default function AdminTeamPage() {
               <span
                 className={clsx(
                   'shrink-0 rounded-full px-2.5 py-1 text-sm font-medium',
-                  !m.active ? 'bg-wine/10 text-wine' : m.role === 'Administrator' ? 'bg-espresso text-ivory' : 'bg-wax text-espresso',
+                  !m.active
+                    ? 'bg-wine/10 text-wine'
+                    : m.role === 'Administrator'
+                      ? 'bg-espresso text-ivory'
+                      : 'bg-wax text-espresso',
                 )}
               >
                 {m.active ? m.role : 'Access off'}
@@ -48,11 +66,26 @@ export default function AdminTeamPage() {
             </div>
             <p className="mt-4 text-sm text-umber">Can open</p>
             <p className="mt-1">
-              {m.role === 'Administrator' ? 'Everything, including team and settings' : m.modules.join(', ') || 'Nothing yet'}
+              {m.role === 'Administrator'
+                ? 'Everything, including team and settings'
+                : m.modules.join(', ') || 'Nothing yet'}
             </p>
-            <button type="button" onClick={() => setEditing(m.id)} className="link mt-3 min-h-11 text-sm">
-              Edit access
-            </button>
+            {live && m.active && !m.joined && <p className="mt-3 text-sm text-toffee">Has not signed in yet.</p>}
+            <div className="mt-3 flex flex-wrap gap-x-5">
+              <button type="button" onClick={() => setEditing(m.id)} className="link min-h-11 text-sm">
+                Edit access
+              </button>
+              {live && m.active && !m.joined && (
+                <button
+                  type="button"
+                  disabled={sending === m.id}
+                  onClick={() => invite(m)}
+                  className="link min-h-11 text-sm"
+                >
+                  {sending === m.id ? 'Sending…' : 'Send invite again'}
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
@@ -71,11 +104,17 @@ export default function AdminTeamPage() {
             locked={Boolean(current && current.role === 'Administrator' && current.active && admins === 1)}
             taken={team.filter(m => m.id !== editing).map(m => m.email.toLowerCase())}
             onSave={member => {
+              const isNew = !current
+              const emailChanged = current && current.email !== member.email
               setShop('team', list =>
-                list.some(m => m.id === member.id) ? list.map(m => (m.id === member.id ? member : m)) : [...list, member],
+                list.some(m => m.id === member.id)
+                  ? list.map(m => (m.id === member.id ? { ...member, joined: emailChanged ? false : m.joined } : m))
+                  : [...list, member],
               )
-              done(current ? `Access updated for ${member.name}` : `${member.name} added to the team as ${member.role}`)
+              done(isNew ? `${member.name} added to the team as ${member.role}` : `Access updated for ${member.name}`)
               setEditing(null)
+              // New people, or a new email address, get an invite
+              if ((isNew || emailChanged) && member.active) invite(member)
             }}
             onRemove={() => {
               setShop('team', list => list.filter(m => m.id !== current!.id))
@@ -115,7 +154,8 @@ function MemberForm({
     if (name.trim().length < 2) return setError('Enter the person’s name.')
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return setError('Enter an email address like name@example.com.')
     if (taken.includes(cleanEmail)) return setError('Someone on the team already uses this email.')
-    if (role === 'Manager' && allowed.length === 0) return setError('Choose at least one part of the dashboard for a manager.')
+    if (role === 'Manager' && allowed.length === 0)
+      return setError('Choose at least one part of the dashboard for a manager.')
     onSave({
       id: member?.id ?? `t${Date.now()}`,
       name: name.trim(),
@@ -132,11 +172,26 @@ function MemberForm({
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="field-label mb-0">
           Name
-          <input value={name} onChange={e => { setName(e.target.value); setError('') }} className="field mt-1.5" />
+          <input
+            value={name}
+            onChange={e => {
+              setName(e.target.value)
+              setError('')
+            }}
+            className="field mt-1.5"
+          />
         </label>
         <label className="field-label mb-0">
           Email they sign in with
-          <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError('') }} className="field mt-1.5" />
+          <input
+            type="email"
+            value={email}
+            onChange={e => {
+              setEmail(e.target.value)
+              setError('')
+            }}
+            className="field mt-1.5"
+          />
         </label>
       </div>
 
@@ -156,7 +211,13 @@ function MemberForm({
                 role === value ? 'border-espresso bg-wax/60' : 'border-hairline hover:border-espresso',
               )}
             >
-              <input type="radio" name="role" className="sr-only" checked={role === value} onChange={() => setRole(value)} />
+              <input
+                type="radio"
+                name="role"
+                className="sr-only"
+                checked={role === value}
+                onChange={() => setRole(value)}
+              />
               <span className="font-medium">{value}</span>
               <span className="block text-sm text-umber">{text}</span>
             </label>
@@ -220,7 +281,11 @@ function MemberForm({
           {member ? 'Save access' : 'Add to team'}
         </button>
         {member && !locked && (
-          <button type="button" onClick={onRemove} className="btn border border-wine text-wine before:bg-wine hover:text-ivory">
+          <button
+            type="button"
+            onClick={onRemove}
+            className="btn border border-wine text-wine before:bg-wine hover:text-ivory"
+          >
             Remove
           </button>
         )}

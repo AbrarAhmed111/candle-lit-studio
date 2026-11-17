@@ -3,19 +3,20 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FormEvent, useState } from 'react'
-import { ArrowLeft, ArrowDown, ArrowUp, Plus, Trash2, Upload } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 import { useAdmin, type AdminProduct } from './AdminData'
 import { card, done, SaveBar, useLeaveWarning } from './ui'
-import { adminUploadImage } from '@/lib/actions/admin'
+import ProductPhotos from './ProductPhotos'
+import ProductSizes, { newSizeRow, type SizeRow } from './ProductSizes'
+import ProductColours, { coloursProblem } from './ProductColours'
+import Field from '@/components/ui/FormField'
 import Modal from '@/components/store/Modal'
-import { photoUrl } from '@/components/store/ProductPhoto'
-import type { FragranceFamily } from '@/types'
+import type { FragranceFamily, ProductColour } from '@/types'
+import Switch from '@/components/ui/Switch'
 
 const families: FragranceFamily[] = ['Floral', 'Woody', 'Gourmand', 'Fresh', 'Earthy', 'Unscented']
-
-type Row = { id: string; label: string; sku: string; price: string; stock: string }
 
 const slugify = (text: string) =>
   text
@@ -24,12 +25,10 @@ const slugify = (text: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
 
-const newRow = (): Row => ({ id: `v${Date.now()}${Math.round(Math.random() * 1000)}`, label: '', sku: '', price: '', stock: '0' })
-
 /** Create a product, or edit the one passed in. */
 export default function ProductForm({ product }: { product?: AdminProduct }) {
   const router = useRouter()
-  const { products, categories, orders, saveProduct, deleteProduct, live } = useAdmin()
+  const { products, categories, orders, saveProduct, deleteProduct } = useAdmin()
   const isNew = !product
 
   const [name, setName] = useState(product?.name ?? '')
@@ -48,16 +47,37 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
     bestSeller: product?.bestSeller ?? false,
     isNew: product?.isNew ?? isNew,
   })
-  const [rows, setRows] = useState<Row[]>(
-    product?.variants.map(v => ({ id: v.id, label: v.label, sku: v.sku, price: String(v.price), stock: String(v.stock) })) ?? [newRow()],
+  const [rows, setRows] = useState<SizeRow[]>(
+    product?.variants.map(v => ({
+      id: v.id,
+      label: v.label,
+      sku: v.sku,
+      price: String(v.price),
+      stock: String(v.stock),
+    })) ?? [newSizeRow()],
   )
   const [images, setImages] = useState<string[]>(product?.images ?? [])
-  const [link, setLink] = useState('')
+  const [colours, setColours] = useState<ProductColour[]>(product?.colours ?? [])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Compare everything the owner can edit with how the form opened
-  const snapshot = JSON.stringify([name, tagline, description, fragrance, family, waxType, colour, tags, chosen, discount, flags, rows.map(({ id, ...r }) => r), images])
+  const snapshot = JSON.stringify([
+    name,
+    tagline,
+    description,
+    fragrance,
+    family,
+    waxType,
+    colour,
+    tags,
+    chosen,
+    discount,
+    flags,
+    rows.map(({ id, ...r }) => r),
+    images,
+    colours,
+  ])
   const [initial] = useState(snapshot)
   const [saved, setSaved] = useState(false)
   const dirty = !saved && snapshot !== initial
@@ -69,44 +89,6 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
 
   const inOrders = product ? (orders ?? []).filter(o => o.lines.some(l => l.productId === product.id)).length : 0
 
-  const setRow = (id: string, key: keyof Row, value: string) => {
-    setRows(list => list.map(r => (r.id === id ? { ...r, [key]: value } : r)))
-    setErrors(e => ({ ...e, variants: '' }))
-  }
-
-  const [uploading, setUploading] = useState(false)
-  const upload = async (files: FileList | null) => {
-    if (!files?.length) return
-    setUploading(true)
-    for (const file of Array.from(files)) {
-      const form = new FormData()
-      form.set('file', file)
-      const result = await adminUploadImage(form)
-      if (!result.ok) {
-        setErrors(e => ({ ...e, images: `${file.name}: ${result.error}` }))
-        break
-      }
-      setImages(list => [...list, result.data])
-    }
-    setUploading(false)
-  }
-
-  const addPhoto = () => {
-    const url = link.trim()
-    if (!/^https:\/\/\S+\.\S+/.test(url)) return setErrors(e => ({ ...e, images: 'Paste a full image link that starts with https://' }))
-    if (images.includes(url)) return setErrors(e => ({ ...e, images: 'That photo is already added.' }))
-    setImages(list => [...list, url])
-    setLink('')
-    setErrors(e => ({ ...e, images: '' }))
-  }
-
-  const movePhoto = (index: number, by: number) =>
-    setImages(list => {
-      const next = [...list]
-      ;[next[index], next[index + by]] = [next[index + by], next[index]]
-      return next
-    })
-
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const found: Record<string, string> = {}
@@ -115,36 +97,56 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
     if (cleanName.length < 2) found.name = 'Enter the product name.'
     else if (products.some(p => p.id !== product?.id && p.slug === slug))
       found.name = 'Another product already uses this name. Choose a different one.'
-    if (description.trim().length < 20) found.description = 'Describe the candle in at least 20 characters.'
+    if (description.trim().length < 20)
+      found.description = 'Write a sentence or two about the candle, so customers know what it smells like.'
     if (chosen.length === 0) found.categories = 'Choose at least one category.'
 
     const pct = discount.trim() === '' ? 0 : Number(discount)
     if (!Number.isInteger(pct) || pct < 0 || pct > 90) found.discount = 'Enter a whole number from 0 to 90.'
 
+    const takenSkus = products.filter(p => p.id !== product?.id).flatMap(p => p.variants.map(v => v.sku))
+    // An empty product code is made from the name and size, for example CLS-DESIGULAB-220
+    const madeCodes: string[] = []
+    const makeCode = (label: string) => {
+      const base = `CLS-${slug.replace(/-/g, '').toUpperCase().slice(0, 10)}-${
+        label
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, '')
+          .slice(0, 6) || 'ONE'
+      }`
+      let code = base
+      for (let n = 2; takenSkus.includes(code) || madeCodes.includes(code); n++) code = `${base}-${n}`
+      madeCodes.push(code)
+      return code
+    }
     const parsed = rows.map(r => ({
       id: r.id,
       label: r.label.trim(),
-      sku: r.sku.trim().toUpperCase(),
+      sku: r.sku.trim().toUpperCase() || makeCode(r.label.trim()),
       price: Number(r.price),
       stock: Number(r.stock),
     }))
-    const takenSkus = products.filter(p => p.id !== product?.id).flatMap(p => p.variants.map(v => v.sku))
     const skus = parsed.map(r => r.sku)
     const duplicate = skus.find((s, i) => skus.indexOf(s) !== i) ?? skus.find(s => takenSkus.includes(s))
     if (parsed.some(r => !r.label)) found.variants = 'Give every size a name, for example 220 g.'
-    else if (parsed.some(r => !r.sku)) found.variants = 'Give every size a SKU.'
-    else if (duplicate) found.variants = `SKU ${duplicate} is used more than once. Every SKU must be different.`
+    else if (duplicate)
+      found.variants = `The product code ${duplicate} is used more than once. Change one, or leave it empty to have one made for you.`
     else if (parsed.some(r => !Number.isInteger(r.price) || r.price < 1))
       found.variants = 'Enter each price as a whole number of rupees, for example 1850.'
     else if (parsed.some(r => !Number.isInteger(r.stock) || r.stock < 0))
       found.variants = 'Enter each stock count as a whole number, 0 or more.'
+
+    const colourIssue = coloursProblem(colours)
+    if (colourIssue) found.colours = colourIssue
 
     setErrors(found)
     if (Object.keys(found).length > 0) {
       toast.error('Fix the highlighted fields, then save again.')
       // Bring the first problem into view
       requestAnimationFrame(() =>
-        document.querySelector('[aria-invalid="true"], .field-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+        document
+          .querySelector('[aria-invalid="true"], .field-error')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
       )
       return
     }
@@ -167,10 +169,14 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
       fragranceFamily: family,
       waxType: waxType.trim() || undefined,
       colour: colour.trim() || undefined,
-      tags: tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
+      tags: tags
+        .split(',')
+        .map(t => t.trim().toLowerCase())
+        .filter(Boolean),
       categories: chosen,
       discountPercent: pct || undefined,
       images,
+      colours: colours.length ? colours.map(c => ({ name: c.name.trim(), hex: c.hex })) : undefined,
       variants: parsed.map(r => ({ ...product?.variants.find(v => v.id === r.id), ...r })),
       ...flags,
     })
@@ -195,7 +201,11 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
 
   return (
     <form onSubmit={submit} noValidate>
-      <Link href="/admin/products" onClick={leave} className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel">
+      <Link
+        href="/admin/products"
+        onClick={leave}
+        className="inline-flex min-h-11 items-center gap-2 text-sm text-umber hover:text-caramel"
+      >
         <ArrowLeft size={16} /> All products
       </Link>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
@@ -251,54 +261,14 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
           </section>
 
           <section className={section} aria-labelledby="sizes-h">
-            <div className="flex items-center justify-between gap-3">
-              <h2 id="sizes-h" className="text-2xl">
-                Sizes, prices and stock
-              </h2>
-              <button type="button" onClick={() => setRows(list => [...list, newRow()])} className="btn-outline min-h-11 px-4 text-sm">
-                <Plus size={16} /> Add size
-              </button>
-            </div>
-            <div className="mt-5 space-y-3">
-              {rows.map((r, i) => (
-                <fieldset key={r.id} className="grid grid-cols-2 gap-3 rounded-xl bg-wax/40 p-3 sm:grid-cols-[1.2fr_1.4fr_1fr_0.8fr_auto] sm:items-end">
-                  <legend className="sr-only">Size {i + 1}</legend>
-                  {(
-                    [
-                      ['label', 'Size name', '220 g', 'text'],
-                      ['sku', 'SKU', 'CLS-ROSE-220', 'text'],
-                      ['price', 'Price (Rs.)', '1850', 'numeric'],
-                      ['stock', 'In stock', '0', 'numeric'],
-                    ] as const
-                  ).map(([key, label, hint, mode]) => (
-                    <label key={key} className="text-sm text-umber">
-                      {label}
-                      <input
-                        value={r[key]}
-                        inputMode={mode}
-                        placeholder={hint}
-                        onChange={e => setRow(r.id, key, e.target.value)}
-                        className="field mt-1"
-                      />
-                    </label>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setRows(list => list.filter(x => x.id !== r.id))}
-                    disabled={rows.length === 1}
-                    aria-label={`Remove size ${r.label || i + 1}`}
-                    className="grid h-12 w-12 place-items-center rounded-xl text-wine hover:bg-wine/10 disabled:opacity-30"
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                </fieldset>
-              ))}
-            </div>
-            {errors.variants && (
-              <p role="alert" className="field-error">
-                {errors.variants}
-              </p>
-            )}
+            <ProductSizes
+              rows={rows}
+              onChange={next => {
+                setRows(next)
+                setErrors(e => ({ ...e, variants: '' }))
+              }}
+              error={errors.variants}
+            />
             <div className="mt-5 max-w-xs">
               <Field id="p-discount" label="Discount on every size (%)" error={errors.discount}>
                 <input
@@ -317,71 +287,23 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
             </div>
           </section>
 
-          <section className={section} aria-labelledby="photos-h">
-            <h2 id="photos-h" className="text-2xl">
-              Photos
-            </h2>
-            <p className="mt-1 text-sm text-umber">
-              The first photo is the main one.{' '}
-              {live ? 'Upload a photo, or paste an image link.' : 'Photo upload works once Supabase is connected. For now paste image links.'}
-            </p>
-            {images.length > 0 && (
-              <ul className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
-                {images.map((id, i) => (
-                  <li key={id} className="overflow-hidden rounded-xl border border-hairline bg-wax">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photoUrl(id, 240)} alt={`Photo ${i + 1}`} className="aspect-[4/5] w-full object-cover" />
-                    <div className="flex items-center justify-between bg-linen">
-                      <button type="button" disabled={i === 0} onClick={() => movePhoto(i, -1)} aria-label={`Move photo ${i + 1} earlier`} className="grid h-11 w-9 place-items-center disabled:opacity-30">
-                        <ArrowUp size={15} />
-                      </button>
-                      <button type="button" disabled={i === images.length - 1} onClick={() => movePhoto(i, 1)} aria-label={`Move photo ${i + 1} later`} className="grid h-11 w-9 place-items-center disabled:opacity-30">
-                        <ArrowDown size={15} />
-                      </button>
-                      <button type="button" onClick={() => setImages(list => list.filter(x => x !== id))} aria-label={`Remove photo ${i + 1}`} className="grid h-11 w-9 place-items-center text-wine">
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-4 flex gap-2">
-              <input
-                value={link}
-                onChange={e => {
-                  setLink(e.target.value)
-                  setErrors(er => ({ ...er, images: '' }))
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    addPhoto()
-                  }
-                }}
-                placeholder="https://…/candle.jpg"
-                aria-label="Image link"
-                className="field min-w-0 flex-1"
-              />
-              <button type="button" onClick={addPhoto} className="btn-outline shrink-0">
-                Add link
-              </button>
-            </div>
-            {live && (
-              <label className="btn-primary mt-3 cursor-pointer has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-caramel">
-                <Upload size={16} /> {uploading ? 'Uploading…' : 'Upload photos'}
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/avif"
-                  multiple
-                  disabled={uploading}
-                  onChange={e => upload(e.target.files)}
-                  className="sr-only"
-                />
-              </label>
-            )}
-            {errors.images && <p className="field-error">{errors.images}</p>}
+          <section className={section} aria-labelledby="colours-h">
+            <ProductColours
+              colours={colours}
+              onChange={next => {
+                setColours(next)
+                setErrors(e => ({ ...e, colours: '' }))
+              }}
+              error={errors.colours}
+            />
           </section>
+
+          <ProductPhotos
+            images={images}
+            onChange={setImages}
+            error={errors.images}
+            onError={message => setErrors(e => ({ ...e, images: message }))}
+          />
         </div>
 
         <div className="space-y-6">
@@ -398,16 +320,11 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
                     </p>
                     <p className="text-sm text-umber">{text}</p>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={flags[key]}
-                    aria-labelledby={`flag-${key}`}
-                    onClick={() => setFlags(f => ({ ...f, [key]: !f[key] }))}
-                    className={clsx('relative h-7 w-12 shrink-0 rounded-full transition-colors', flags[key] ? 'bg-sage' : 'bg-hairline')}
-                  >
-                    <span className={clsx('absolute left-1 top-1 h-5 w-5 rounded-full bg-linen transition-transform', flags[key] && 'translate-x-5')} />
-                  </button>
+                  <Switch
+                    checked={flags[key]}
+                    onChange={() => setFlags(f => ({ ...f, [key]: !f[key] }))}
+                    labelledBy={`flag-${key}`}
+                  />
                 </li>
               ))}
             </ul>
@@ -441,26 +358,45 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
             </div>
             {errors.categories && <p className="field-error">{errors.categories}</p>}
             <div className="mt-5">
-              <Field id="p-tags" label="Tags, separated by commas">
-                <input id="p-tags" value={tags} onChange={e => setTags(e.target.value)} placeholder="rose, saffron" className="field" />
+              <Field id="p-tags" label="Search words (optional), separated by commas">
+                <input
+                  id="p-tags"
+                  value={tags}
+                  onChange={e => setTags(e.target.value)}
+                  placeholder="rose, saffron"
+                  className="field"
+                />
               </Field>
             </div>
           </section>
 
           <section className={section} aria-labelledby="scent-h">
             <h2 id="scent-h" className="text-2xl">
-              Scent and wax
+              Scent and wax <span className="font-sans text-base font-normal text-umber">(optional)</span>
             </h2>
+            <p className="mt-1 text-sm text-umber">
+              Helps customers filter the shop by scent. Leave anything you are unsure of.
+            </p>
             <div className="mt-4 space-y-4">
               <Field id="p-family" label="Fragrance family">
-                <select id="p-family" value={family} onChange={e => setFamily(e.target.value as FragranceFamily)} className="field">
+                <select
+                  id="p-family"
+                  value={family}
+                  onChange={e => setFamily(e.target.value as FragranceFamily)}
+                  className="field"
+                >
                   {families.map(f => (
                     <option key={f}>{f}</option>
                   ))}
                 </select>
               </Field>
               <Field id="p-fragrance" label="Fragrance, for example Rose and saffron">
-                <input id="p-fragrance" value={fragrance} onChange={e => setFragrance(e.target.value)} className="field" />
+                <input
+                  id="p-fragrance"
+                  value={fragrance}
+                  onChange={e => setFragrance(e.target.value)}
+                  className="field"
+                />
               </Field>
               <Field id="p-wax" label="Wax">
                 <input id="p-wax" value={waxType} onChange={e => setWaxType(e.target.value)} className="field" />
@@ -483,8 +419,8 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
         {inOrders > 0 ? (
           <>
             <p className="mt-2 text-umber">
-              This candle appears in {inOrders} {inOrders === 1 ? 'order' : 'orders'}, so it cannot be deleted.
-              Hide it from the store instead and the order records stay intact.
+              This candle appears in {inOrders} {inOrders === 1 ? 'order' : 'orders'}, so it cannot be deleted. Hide it
+              from the store instead and the order records stay intact.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               <button
@@ -522,27 +458,5 @@ export default function ProductForm({ product }: { product?: AdminProduct }) {
       {/* Room for the save bar so it never covers the last field */}
       {dirty && <div aria-hidden className="h-20" />}
     </form>
-  )
-}
-
-function Field({
-  id,
-  label,
-  error,
-  children,
-}: {
-  id: string
-  label: string
-  error?: string
-  children: React.ReactNode
-}) {
-  return (
-    <div>
-      <label htmlFor={id} className="field-label">
-        {label}
-      </label>
-      {children}
-      {error && <p className="field-error">{error}</p>}
-    </div>
   )
 }
